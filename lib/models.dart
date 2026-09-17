@@ -1,0 +1,193 @@
+import 'dart:convert';
+
+class SourceSite {
+  const SourceSite(this.id, this.name, this.description);
+  final String id;
+  final String name;
+  final String description;
+  bool get onlineSearch => id == 'hongguo';
+
+  static const values = [
+    SourceSite('hongguo', '红果', '短剧 · 漫剧 · AI 剧'),
+    SourceSite('huangdou', '黄豆', '精选短剧'),
+    SourceSite('huangguo-video', '黄果视频', '视频剧集'),
+    SourceSite('huangguoai', '黄果 AI', 'AI 短剧'),
+  ];
+  static SourceSite byId(String id) =>
+      values.firstWhere((site) => site.id == id, orElse: () => values.first);
+}
+
+int intValue(Object? value) =>
+    value is num ? value.toInt() : int.tryParse('$value') ?? 0;
+
+class Drama {
+  const Drama({
+    required this.id,
+    required this.source,
+    required this.title,
+    this.sourceId = '',
+    this.description = '',
+    this.cover = '',
+    this.episodes = 0,
+    this.category = '',
+    this.vip = false,
+  });
+  final String id;
+  final String source;
+  final String sourceId;
+  final String title;
+  final String description;
+  final String cover;
+  final int episodes;
+  final String category;
+  final bool vip;
+
+  factory Drama.fromJson(Map<String, dynamic> json) => Drama(
+    id: json['id'] as String? ?? '',
+    source: json['source'] as String? ?? 'hongguo',
+    sourceId: json['sourceId'] as String? ?? '',
+    title: json['title'] as String? ?? '短剧',
+    description: json['description'] as String? ?? '',
+    cover: json['cover'] as String? ?? '',
+    episodes: intValue(json['episodes']),
+    category: json['category'] as String? ?? '',
+    vip: json['vip'] == true,
+  );
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'source': source,
+    'sourceId': sourceId,
+    'title': title,
+    'description': description,
+    'cover': cover,
+    'episodes': episodes,
+    'category': category,
+    'vip': vip,
+  };
+}
+
+class Episode {
+  Episode(this.raw, int fallback)
+    : id = raw['id'] as String? ?? '',
+      title = raw['title'] as String? ?? '第$fallback集',
+      number = intValue(raw['currentEpisode']) > 0
+          ? intValue(raw['currentEpisode'])
+          : fallback,
+      vip = raw['vip'] == true;
+  final Map<String, dynamic> raw;
+  final String id;
+  final String title;
+  final int number;
+  final bool vip;
+}
+
+class DramaDetail {
+  DramaDetail(this.drama, this.episodes);
+  final Drama drama;
+  final List<Episode> episodes;
+  factory DramaDetail.fromJson(Map<String, dynamic> json) {
+    final rows = json['chapters'] as List? ?? const [];
+    return DramaDetail(
+      Drama.fromJson(Map<String, dynamic>.from(json['drama'] as Map)),
+      [
+        for (var i = 0; i < rows.length; i++)
+          Episode(Map<String, dynamic>.from(rows[i] as Map), i + 1),
+      ],
+    );
+  }
+}
+
+class CatalogPage {
+  CatalogPage(
+    this.items, {
+    this.hasMore = false,
+    this.warning = '',
+    this.page = 1,
+    this.fresh = false,
+  });
+  final List<Drama> items;
+  final bool hasMore;
+  final String warning;
+  final int page;
+  final bool fresh;
+  factory CatalogPage.fromJson(Map<String, dynamic> json) => CatalogPage(
+    [
+      for (final row in json['items'] as List? ?? const [])
+        Drama.fromJson(Map<String, dynamic>.from(row as Map)),
+    ],
+    hasMore: json['hasMore'] == true,
+    warning: json['warning'] as String? ?? '',
+    page: intValue(json['page']) > 0 ? intValue(json['page']) : 1,
+    fresh: json['fresh'] == true,
+  );
+}
+
+class PlaybackPlan {
+  const PlaybackPlan({
+    required this.url,
+    this.headers = const {},
+    this.decryptionKey = '',
+    this.quality = 0,
+    this.qualities = const [],
+    this.session = '',
+  });
+  final String url;
+  final Map<String, String> headers;
+  final String decryptionKey;
+  final int quality;
+  final List<int> qualities;
+  final String session;
+  factory PlaybackPlan.fromJson(Map<String, dynamic> json) => PlaybackPlan(
+    url: json['url'] as String? ?? '',
+    headers: (json['headers'] as Map? ?? {}).map(
+      (key, value) => MapEntry(key.toString(), value.toString()),
+    ),
+    decryptionKey: json['decryptionKey'] as String? ?? '',
+    quality: intValue(json['quality']),
+    qualities: (json['qualities'] as List? ?? []).map(intValue).toSet().toList()
+      ..sort((a, b) => b.compareTo(a)),
+    session: json['session'] as String? ?? '',
+  );
+}
+
+class WatchEntry {
+  WatchEntry({
+    required this.drama,
+    required this.episode,
+    required this.position,
+    required this.duration,
+    required this.updatedAt,
+  });
+  final Drama drama;
+  final int episode;
+  final double position;
+  final double duration;
+  final DateTime updatedAt;
+  bool get finished => duration > 1 && position >= duration - 1;
+  Map<String, dynamic> toJson() => {
+    'drama': drama.toJson(),
+    'episode': episode,
+    'position': position,
+    'duration': duration,
+    'updatedAt': updatedAt.toIso8601String(),
+  };
+  factory WatchEntry.fromJson(Map<String, dynamic> json) => WatchEntry(
+    drama: Drama.fromJson(Map<String, dynamic>.from(json['drama'] as Map)),
+    episode: intValue(json['episode']),
+    position: (json['position'] as num?)?.toDouble() ?? 0,
+    duration: (json['duration'] as num?)?.toDouble() ?? 0,
+    updatedAt:
+        DateTime.tryParse(json['updatedAt'].toString()) ?? DateTime(2000),
+  );
+}
+
+List<Map<String, dynamic>> readJsonList(String? value) {
+  try {
+    return (jsonDecode(value ?? '[]') as List)
+        .whereType<Map>()
+        .map((row) => Map<String, dynamic>.from(row))
+        .toList();
+  } catch (_) {
+    return [];
+  }
+}
