@@ -7,12 +7,14 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'app_layout.dart';
 import 'core_bridge.dart';
 import 'local_store.dart';
 import 'models.dart';
 import 'playback_loader.dart';
 import 'playback_recovery.dart';
 import 'player_controls.dart';
+import 'television_controls.dart';
 import 'widgets.dart';
 
 class PlayerScreen extends StatefulWidget {
@@ -69,7 +71,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   double _aspectRatio = 9 / 16;
   double _resumePosition = 0;
   bool _rotating = false;
-  bool get _mobile => Platform.isAndroid || Platform.isIOS;
+  bool _television = false;
+  bool get _mobile => !_television && (Platform.isAndroid || Platform.isIOS);
   String get _session => _plan?.session ?? '';
   double get _currentPosition =>
       _openedIndex == _index && _player.state.position.inMilliseconds > 0
@@ -151,6 +154,22 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
     });
     _play(_index, position: widget.initialPosition);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final television = AppLayout.isTelevision(context);
+    if (_television != television) {
+      _television = television;
+      if (Platform.isAndroid) {
+        unawaited(
+          SystemChrome.setEnabledSystemUIMode(
+            television ? SystemUiMode.immersiveSticky : SystemUiMode.edgeToEdge,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -420,13 +439,14 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   bool get _showFullscreen =>
+      _television ||
       _fullscreen ||
       (_mobile &&
           _aspectRatio >= 1 &&
           MediaQuery.orientationOf(context) == Orientation.landscape);
 
   Future<void> _rotate() async {
-    if (_rotating) {
+    if (_rotating || _television) {
       return;
     }
     final fullscreen = !_showFullscreen;
@@ -480,6 +500,48 @@ class _PlayerScreenState extends State<PlayerScreen>
     _player.seek(target);
   }
 
+  Future<void> _televisionEpisodes() async {
+    final index = await showDialog<int>(
+      context: context,
+      builder: (_) => TelevisionEpisodeDialog(
+        episodes: widget.detail.episodes,
+        currentIndex: _index,
+      ),
+    );
+    if (index != null && mounted && !_closed && index != _index) {
+      await _play(index);
+    }
+  }
+
+  Future<void> _televisionSettings() async {
+    final selection = await showDialog<TelevisionPlaybackSetting>(
+      context: context,
+      builder: (_) => TelevisionSettingsDialog(
+        speed: _speed,
+        quality: _requestedQuality,
+        qualities: _plan?.qualities ?? [],
+        favorite: widget.store.isFavorite(widget.detail.drama.id),
+        onFavorite: () => widget.store.toggleFavorite(widget.detail.drama),
+      ),
+    );
+    if (selection == null || !mounted || _closed) return;
+    if (selection.speed != null) {
+      setState(() => _speed = selection.speed!);
+      await _player.setRate(_speed);
+    } else if (selection.quality != null &&
+        selection.quality != _requestedQuality) {
+      await _retry(quality: selection.quality);
+    }
+  }
+
+  void _back() {
+    if (_showFullscreen && !_television) {
+      _rotate();
+    } else {
+      Navigator.of(context).maybePop();
+    }
+  }
+
   @override
   void dispose() {
     _closed = true;
@@ -504,6 +566,8 @@ class _PlayerScreenState extends State<PlayerScreen>
         SystemChrome.setPreferredOrientations(DeviceOrientation.values),
       );
       unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
+    } else if (_television && Platform.isAndroid) {
+      unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
     }
     super.dispose();
   }
@@ -514,31 +578,32 @@ class _PlayerScreenState extends State<PlayerScreen>
     final episode = widget.detail.episodes[_index];
     final fullscreen = _showFullscreen;
     return PopScope(
-      canPop: !fullscreen,
+      canPop: _television || !fullscreen,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && fullscreen) {
+        if (!didPop && fullscreen && !_television) {
           _rotate();
         }
       },
       child: CallbackShortcuts(
         bindings: {
-          const SingleActivator(LogicalKeyboardKey.keyF, control: true):
-              _rotate,
-          const SingleActivator(LogicalKeyboardKey.f11): _rotate,
-          const SingleActivator(LogicalKeyboardKey.escape): () {
-            if (fullscreen) {
-              _rotate();
-            } else {
-              Navigator.of(context).maybePop();
-            }
+          const SingleActivator(LogicalKeyboardKey.escape): _back,
+          const SingleActivator(LogicalKeyboardKey.goBack): _back,
+          if (!_television) ...{
+            const SingleActivator(LogicalKeyboardKey.keyF, control: true):
+                _rotate,
+            const SingleActivator(LogicalKeyboardKey.f11): _rotate,
+            const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
+                _seek(-10),
+            const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
+                _seek(10),
+            const SingleActivator(LogicalKeyboardKey.space): () =>
+                _togglePlayback(),
           },
-          const SingleActivator(LogicalKeyboardKey.arrowLeft): () => _seek(-10),
-          const SingleActivator(LogicalKeyboardKey.arrowRight): () => _seek(10),
-          const SingleActivator(LogicalKeyboardKey.space): () =>
-              _togglePlayback(),
         },
         child: Focus(
-          autofocus: true,
+          autofocus: !_television,
+          canRequestFocus: !_television,
+          skipTraversal: _television,
           child: Scaffold(
             backgroundColor: Colors.black,
             appBar: fullscreen
@@ -611,19 +676,35 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Widget _videoPane() {
-    final controls = PlayerControls(
-      player: _player,
-      fullscreen: _showFullscreen,
-      title:
-          '${widget.detail.drama.title} · 第 ${widget.detail.episodes[_index].number} 集${widget.detail.episodes[_index].vip ? ' · VIP 试看' : ''}${(_plan?.routeIndex ?? 0) > 0 ? ' · 线路 ${_plan!.routeIndex + 1}' : ''}',
-      onTogglePlayback: _togglePlayback,
-      swipeEnabled: _mobile,
-      onFullscreen: _rotate,
-      onPrevious: _index > 0 ? () => _play(_index - 1) : null,
-      onNext: _index + 1 < widget.detail.episodes.length
-          ? () => _play(_index + 1)
-          : null,
-    );
+    final title =
+        '${widget.detail.drama.title} · 第 ${widget.detail.episodes[_index].number} 集${widget.detail.episodes[_index].vip ? ' · VIP 试看' : ''}${(_plan?.routeIndex ?? 0) > 0 ? ' · 线路 ${_plan!.routeIndex + 1}' : ''}';
+    final Widget controls = _television
+        ? TelevisionControls(
+            player: _player,
+            title: title,
+            enabled: !_loading && _error == null,
+            onTogglePlayback: _togglePlayback,
+            onSeek: _seek,
+            onPrevious: _index > 0 ? () => _play(_index - 1) : null,
+            onNext: _index + 1 < widget.detail.episodes.length
+                ? () => _play(_index + 1)
+                : null,
+            onEpisodes: _televisionEpisodes,
+            onSettings: _televisionSettings,
+            onBack: _back,
+          )
+        : PlayerControls(
+            player: _player,
+            fullscreen: _showFullscreen,
+            title: title,
+            onTogglePlayback: _togglePlayback,
+            swipeEnabled: _mobile,
+            onFullscreen: _rotate,
+            onPrevious: _index > 0 ? () => _play(_index - 1) : null,
+            onNext: _index + 1 < widget.detail.episodes.length
+                ? () => _play(_index + 1)
+                : null,
+          );
     return Stack(
       fit: StackFit.expand,
       children: [

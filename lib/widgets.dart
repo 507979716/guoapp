@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import 'core_bridge.dart';
+import 'app_layout.dart';
 import 'models.dart';
+import 'remote_widgets.dart';
 
 class DramaCover extends StatelessWidget {
   const DramaCover({
@@ -183,52 +185,73 @@ class DramaTile extends StatelessWidget {
     required this.repository,
     required this.onTap,
     this.subtitle,
+    this.focusNode,
+    this.onFocus,
   });
   final Drama drama;
   final AppRepository repository;
   final VoidCallback onTap;
   final String? subtitle;
+  final FocusNode? focusNode;
+  final VoidCallback? onFocus;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: '${drama.title}，${drama.episodes}集',
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: DramaCover(drama: drama, repository: repository),
-          ),
-          const SizedBox(height: 9),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Text(
-              drama.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w600, height: 1.3),
+  Widget build(BuildContext context) {
+    final television = AppLayout.isTelevision(context);
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: DramaCover(drama: drama, repository: repository),
+        ),
+        const SizedBox(height: 9),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Text(
+            drama.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              height: 1.3,
+              fontSize: television ? 17 : null,
             ),
           ),
-          const SizedBox(height: 4),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Text(
-              subtitle ?? drama.category,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.white.withValues(alpha: .45),
-              ),
+        ),
+        const SizedBox(height: 4),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Text(
+            subtitle ?? drama.category,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: television ? 14 : 12,
+              color: Colors.white.withValues(alpha: .45),
             ),
           ),
-        ],
+        ),
+      ],
+    );
+    if (television) {
+      return RemoteTarget(
+        focusNode: focusNode,
+        onFocus: onFocus,
+        onPressed: onTap,
+        label: '${drama.title}，${drama.episodes}集',
+        child: content,
+      );
+    }
+    return Semantics(
+      button: true,
+      label: '${drama.title}，${drama.episodes}集',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: content,
       ),
-    ),
-  );
+    );
+  }
 }
 
 class StatusPanel extends StatelessWidget {
@@ -270,6 +293,7 @@ class StatusPanel extends StatelessWidget {
           if (onRetry != null) ...[
             const SizedBox(height: 24),
             FilledButton.icon(
+              autofocus: AppLayout.isTelevision(context),
               onPressed: onRetry,
               icon: const Icon(Icons.refresh_rounded),
               label: Text(action),

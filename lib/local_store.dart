@@ -32,11 +32,18 @@ class LocalStore extends ChangeNotifier {
   WatchEntry? watched(String id) => _history[id];
   bool isFavorite(String id) => _favorites.containsKey(id);
   bool get hideVip => preferences.getBool('hideVip') ?? true;
+  String get displayMode => preferences.getString('displayMode') ?? 'auto';
   String get source =>
       SourceSite.byId(preferences.getString('source') ?? '').id;
 
   Future<void> setSource(String value) async {
     await preferences.setString('source', value);
+  }
+
+  Future<void> setDisplayMode(String value) async {
+    if (!{'auto', 'television', 'standard'}.contains(value)) return;
+    await preferences.setString('displayMode', value);
+    notifyListeners();
   }
 
   Future<void> setHideVip(bool value) async {

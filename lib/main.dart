@@ -1,12 +1,14 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'core_bridge.dart';
+import 'app_layout.dart';
 import 'home_screen.dart';
 import 'local_store.dart';
 
@@ -29,6 +31,7 @@ class _AppBootstrapState extends State<AppBootstrap> {
   final repository = NativeRepository();
   LocalStore? store;
   Object? error;
+  AppDevice device = const AppDevice();
 
   @override
   void dispose() {
@@ -48,6 +51,7 @@ class _AppBootstrapState extends State<AppBootstrap> {
     });
     try {
       final preferences = await SharedPreferences.getInstance();
+      device = await AppDevice.detect();
       await repository.initialize();
       if (mounted) {
         setState(() {
@@ -69,6 +73,8 @@ class _AppBootstrapState extends State<AppBootstrap> {
     store: store,
     bootstrapError: error?.toString(),
     onRetry: _initialize,
+    television: device.television,
+    version: device.version,
   );
 }
 
@@ -79,11 +85,15 @@ class DuanjuApp extends StatelessWidget {
     this.store,
     this.bootstrapError,
     this.onRetry,
+    this.television = false,
+    this.version = appVersion,
   });
   final AppRepository repository;
   final LocalStore? store;
   final String? bootstrapError;
   final VoidCallback? onRetry;
+  final bool television;
+  final String version;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -92,6 +102,37 @@ class DuanjuApp extends StatelessWidget {
     locale: const Locale('zh', 'CN'),
     supportedLocales: const [Locale('zh', 'CN')],
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
+    builder: (context, child) {
+      Widget layout() {
+        final mode = store?.displayMode ?? 'auto';
+        final tv = mode == 'television' || mode == 'auto' && television;
+        return AppLayout(
+          television: tv,
+          version: version,
+          child: Theme(
+            data: tv ? televisionTheme(Theme.of(context)) : Theme.of(context),
+            child: Shortcuts(
+              shortcuts: const {
+                SingleActivator(
+                  LogicalKeyboardKey.select,
+                  includeRepeats: false,
+                ): ActivateIntent(),
+                SingleActivator(
+                  LogicalKeyboardKey.gameButtonA,
+                  includeRepeats: false,
+                ): ActivateIntent(),
+                SingleActivator(LogicalKeyboardKey.goBack): DismissIntent(),
+              },
+              child: FocusTraversalGroup(child: child!),
+            ),
+          ),
+        );
+      }
+
+      return store == null
+          ? layout()
+          : AnimatedBuilder(animation: store!, builder: (_, _) => layout());
+    },
     theme: ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,

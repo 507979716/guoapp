@@ -231,7 +231,7 @@ func nativeDispatch(input nativeInput) (any, error) {
 			nativeState.engine = engine
 		}
 		nativeState.Unlock()
-		return map[string]any{"version": "0.1.2", "standalone": true}, nil
+		return map[string]any{"version": "0.1.3", "standalone": true}, nil
 	}
 	engine := nativeState.engine
 	nativeState.Unlock()

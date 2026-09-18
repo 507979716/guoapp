@@ -1,11 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import 'app_layout.dart';
 import 'core_bridge.dart';
 import 'detail_screen.dart';
 import 'local_store.dart';
 import 'models.dart';
+import 'remote_widgets.dart';
 import 'widgets.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -31,6 +34,67 @@ class _HomeScreenState extends State<HomeScreen> {
   int _tab = 0;
   String _submittedQuery = '';
   bool _failedMore = false;
+
+  Future<void> _chooseDisplayMode() async {
+    final selection = await showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('界面模式'),
+        children: [
+          RadioGroup<String>(
+            groupValue: widget.store.displayMode,
+            onChanged: (value) => Navigator.pop(context, value),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final mode in const {
+                  'auto': '自动识别设备',
+                  'television': '电视 / 遥控器',
+                  'standard': '手机 / 电脑',
+                }.entries)
+                  RadioListTile<String>(
+                    value: mode.key,
+                    autofocus: mode.key == widget.store.displayMode,
+                    title: Text(mode.value),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+    if (selection != null && mounted) {
+      await widget.store.setDisplayMode(selection);
+    }
+  }
+
+  Future<void> _televisionSearch() async {
+    final query = await showDialog<String>(
+      context: context,
+      builder: (_) => TelevisionSearchDialog(
+        initialValue: _search.text,
+        title: _source.onlineSearch ? '搜索红果短剧' : '筛选当前已加载短剧',
+      ),
+    );
+    if (query != null && mounted) {
+      _search.text = query;
+      _debounce?.cancel();
+      if (_source.onlineSearch) {
+        _load();
+      } else {
+        setState(() {});
+      }
+    }
+  }
+
+  void _televisionBack() {
+    if (_tab != 0) {
+      setState(() => _tab = 0);
+    } else if (_search.text.isNotEmpty) {
+      _search.clear();
+      _searchChanged('');
+    }
+  }
 
   @override
   void initState() {
@@ -192,9 +256,11 @@ class _HomeScreenState extends State<HomeScreen> {
     animation: widget.store,
     builder: (context, _) => LayoutBuilder(
       builder: (context, constraints) {
+        final television = AppLayout.isTelevision(context);
         final desktop = constraints.maxWidth >= 840;
-        return Scaffold(
+        final scaffold = Scaffold(
           appBar: AppBar(
+            toolbarHeight: television ? 64 : null,
             title: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -220,11 +286,13 @@ class _HomeScreenState extends State<HomeScreen> {
               PopupMenuButton<String>(
                 tooltip: '更多',
                 onSelected: (value) {
-                  if (value == 'about') {
+                  if (value == 'display') {
+                    _chooseDisplayMode();
+                  } else if (value == 'about') {
                     showAboutDialog(
                       context: context,
                       applicationName: '短剧库',
-                      applicationVersion: '0.1.1',
+                      applicationVersion: AppLayout.versionOf(context),
                       applicationIcon: const Icon(
                         Icons.play_circle_filled_rounded,
                         size: 48,
@@ -237,6 +305,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   }
                 },
                 itemBuilder: (_) => [
+                  const PopupMenuItem(value: 'display', child: Text('界面模式')),
                   const PopupMenuItem(value: 'about', child: Text('关于短剧库')),
                 ],
               ),
@@ -247,7 +316,37 @@ class _HomeScreenState extends State<HomeScreen> {
             top: false,
             child: Row(
               children: [
-                if (desktop) ...[
+                if (television) ...[
+                  SizedBox(
+                    width: 164,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 24, 8, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          for (final entry in const [
+                            (Icons.explore_rounded, '发现'),
+                            (Icons.bookmark_rounded, '追剧'),
+                            (Icons.history_rounded, '最近观看'),
+                          ].indexed)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 14),
+                              child: RemoteButton(
+                                key: ValueKey('tv-nav-${entry.$1}'),
+                                label: entry.$2.$2,
+                                icon: entry.$2.$1,
+                                selected: _tab == entry.$1,
+                                autofocus: entry.$1 == 0,
+                                onPressed: () =>
+                                    setState(() => _tab = entry.$1),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const VerticalDivider(width: 1, color: Color(0xFF26282E)),
+                ] else if (desktop) ...[
                   NavigationRail(
                     selectedIndex: _tab,
                     onDestinationSelected: (value) => setState(() {
@@ -283,7 +382,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          bottomNavigationBar: desktop
+          bottomNavigationBar: desktop || television
               ? null
               : NavigationBar(
                   selectedIndex: _tab,
@@ -308,62 +407,105 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
         );
+        if (!television) return scaffold;
+        return PopScope(
+          canPop: _tab == 0 && _search.text.isEmpty,
+          onPopInvokedWithResult: (didPop, result) {
+            if (!didPop) _televisionBack();
+          },
+          child: CallbackShortcuts(
+            bindings: {
+              const SingleActivator(LogicalKeyboardKey.escape): () =>
+                  Navigator.of(context).maybePop(),
+              const SingleActivator(LogicalKeyboardKey.goBack): () =>
+                  Navigator.of(context).maybePop(),
+            },
+            child: scaffold,
+          ),
+        );
       },
     ),
   );
 
   Widget _catalog() {
     final items = _visible;
+    final television = AppLayout.isTelevision(context);
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: TextField(
-            controller: _search,
-            textInputAction: TextInputAction.search,
-            onChanged: _searchChanged,
-            onSubmitted: (_) {
-              _debounce?.cancel();
-              if (_source.onlineSearch) {
-                _load();
-              }
-            },
-            decoration: InputDecoration(
-              hintText: _source.onlineSearch ? '搜索红果短剧' : '筛选当前已加载短剧',
-              prefixIcon: const Icon(Icons.search_rounded),
-              suffixIcon: _search.text.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: '清空搜索',
-                      onPressed: () {
-                        _search.clear();
-                        _searchChanged('');
-                      },
-                      icon: const Icon(Icons.close_rounded),
+        if (television)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final source in SourceSite.values)
+                    RemoteButton(
+                      key: ValueKey('tv-source-${source.id}'),
+                      label: source.name,
+                      selected: source.id == _source.id,
+                      onPressed: () => _changeSource(source),
                     ),
+                  const SizedBox(width: 12),
+                  RemoteButton(
+                    label: '搜索',
+                    icon: Icons.search_rounded,
+                    onPressed: _televisionSearch,
+                  ),
+                ],
+              ),
+            ),
+          )
+        else ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: TextField(
+              controller: _search,
+              textInputAction: TextInputAction.search,
+              onChanged: _searchChanged,
+              onSubmitted: (_) {
+                _debounce?.cancel();
+                if (_source.onlineSearch) {
+                  _load();
+                }
+              },
+              decoration: InputDecoration(
+                hintText: _source.onlineSearch ? '搜索红果短剧' : '筛选当前已加载短剧',
+                prefixIcon: const Icon(Icons.search_rounded),
+                suffixIcon: _search.text.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: '清空搜索',
+                        onPressed: () {
+                          _search.clear();
+                          _searchChanged('');
+                        },
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+              ),
             ),
           ),
-        ),
-        SizedBox(
-          height: 64,
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            scrollDirection: Axis.horizontal,
-            itemCount: SourceSite.values.length,
-            separatorBuilder: (_, index) => const SizedBox(width: 8),
-            itemBuilder: (_, index) {
-              final source = SourceSite.values[index];
-              return Center(
-                child: ChoiceChip(
-                  label: Text(source.name),
-                  selected: source.id == _source.id,
-                  showCheckmark: false,
-                  onSelected: (_) => _changeSource(source),
-                ),
-              );
-            },
+          SizedBox(
+            height: 64,
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              scrollDirection: Axis.horizontal,
+              itemCount: SourceSite.values.length,
+              separatorBuilder: (_, index) => const SizedBox(width: 8),
+              itemBuilder: (_, index) {
+                final source = SourceSite.values[index];
+                return Center(
+                  child: ChoiceChip(
+                    label: Text(source.name),
+                    selected: source.id == _source.id,
+                    showCheckmark: false,
+                    onSelected: (_) => _changeSource(source),
+                  ),
+                );
+              },
+            ),
           ),
-        ),
+        ],
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 0, 12, 8),
           child: Row(
@@ -373,9 +515,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   _submittedQuery.isNotEmpty && _source.onlineSearch
                       ? '搜索结果 · ${items.length} 部'
                       : '${_source.description} · ${items.length} 部',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Color(0xFFB3B1BA),
-                    fontSize: 12,
+                    fontSize: television ? 14 : 12,
                   ),
                 ),
               ),
@@ -460,6 +602,28 @@ class _HomeScreenState extends State<HomeScreen> {
                 )
               : LayoutBuilder(
                   builder: (context, constraints) {
+                    if (television) {
+                      return _televisionGrid(
+                        items,
+                        constraints.maxWidth,
+                        key: 'catalog-${_source.id}-$_submittedQuery',
+                        controller: _scroll,
+                        footer: Padding(
+                          padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
+                          child: Center(
+                            child: _loadingMore
+                                ? const CircularProgressIndicator()
+                                : _hasMore
+                                ? RemoteButton(
+                                    label: '加载更多',
+                                    icon: Icons.expand_more,
+                                    onPressed: () => _load(more: true),
+                                  )
+                                : const Text('已经看到这里的全部剧集'),
+                          ),
+                        ),
+                      );
+                    }
                     final padding = constraints.maxWidth < 600 ? 16.0 : 24.0;
                     return RefreshIndicator(
                       onRefresh: () => _load(force: true),
@@ -594,26 +758,74 @@ class _HomeScreenState extends State<HomeScreen> {
                       : Icons.history_rounded,
                 )
               : LayoutBuilder(
-                  builder: (context, constraints) => GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                    gridDelegate: dramaGridDelegate(constraints.maxWidth - 40),
-                    itemCount: items.length,
-                    itemBuilder: (_, index) {
-                      final drama = items[index];
-                      final entry = widget.store.watched(drama.id);
-                      return DramaTile(
-                        drama: drama,
-                        repository: widget.repository,
-                        onTap: () => _openDrama(drama),
-                        subtitle: entry == null
-                            ? SourceSite.byId(drama.source).name
-                            : '看到第 ${entry.episode} 集 · ${formatPosition(entry.position)}',
-                      );
-                    },
-                  ),
+                  builder: (context, constraints) =>
+                      AppLayout.isTelevision(context)
+                      ? _televisionGrid(
+                          items,
+                          constraints.maxWidth,
+                          key: 'saved-$_tab',
+                          saved: true,
+                        )
+                      : GridView.builder(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                          gridDelegate: dramaGridDelegate(
+                            constraints.maxWidth - 40,
+                          ),
+                          itemCount: items.length,
+                          itemBuilder: (_, index) {
+                            final drama = items[index];
+                            final entry = widget.store.watched(drama.id);
+                            return DramaTile(
+                              drama: drama,
+                              repository: widget.repository,
+                              onTap: () => _openDrama(drama),
+                              subtitle: entry == null
+                                  ? SourceSite.byId(drama.source).name
+                                  : '看到第 ${entry.episode} 集 · ${formatPosition(entry.position)}',
+                            );
+                          },
+                        ),
                 ),
         ),
       ],
+    );
+  }
+
+  Widget _televisionGrid(
+    List<Drama> items,
+    double width, {
+    required String key,
+    ScrollController? controller,
+    Widget? footer,
+    bool saved = false,
+  }) {
+    final columns = ((width - 36) / 150).floor().clamp(1, 8);
+    final tileWidth = (width - 36 - (columns - 1) * 14) / columns;
+    return RemoteGrid(
+      key: ValueKey('tv-grid-$key'),
+      itemKeys: items.map((item) => item.id).toList(),
+      columns: columns,
+      itemExtent: tileWidth * 1.5 + 84,
+      controller: controller,
+      footer: footer,
+      padding: const EdgeInsets.fromLTRB(18, 2, 18, 18),
+      itemBuilder: (_, index, node, onFocus) {
+        final drama = items[index];
+        final entry = widget.store.watched(drama.id);
+        return DramaTile(
+          key: ValueKey(drama.id),
+          drama: drama,
+          repository: widget.repository,
+          focusNode: node,
+          onFocus: onFocus,
+          onTap: () => _openDrama(drama),
+          subtitle: !saved
+              ? null
+              : entry == null
+              ? SourceSite.byId(drama.source).name
+              : '第 ${entry.episode} 集 · ${formatPosition(entry.position)}',
+        );
+      },
     );
   }
 }
