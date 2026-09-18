@@ -4,6 +4,9 @@ import 'dart:io';
 import 'package:duanju_app/core_bridge.dart';
 import 'package:duanju_app/downloads_screen.dart';
 import 'package:duanju_app/local_store.dart';
+import 'package:duanju_app/media_library.dart';
+import 'package:duanju_app/media_pipeline.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:duanju_app/main.dart';
 import 'package:duanju_app/models.dart';
 import 'package:duanju_app/player_screen.dart';
@@ -95,6 +98,11 @@ class DeviceFixtureRepository extends AppRepository {
 
 class DownloadFixtureRepository extends DeviceFixtureRepository {
   final locallyOpened = <int>[];
+  @override
+  Future<String> downloadDirectory() => native.downloadDirectory();
+  @override
+  Future<int> workLease(String id, String command) =>
+      native.workLease(id, command);
 
   @override
   bool get supportsDownloads => true;
@@ -549,6 +557,32 @@ void main() {
           'return to downloads',
         );
         await binding.takeScreenshot('android-offline-downloads');
+        final library = MediaLibrary(repository, store);
+        try {
+          final merged = await library.merge(jobs);
+          expect(merged.videoTranscodes, 0);
+          final probe = await FFmpegExecutor().probe(library.fileFor(merged));
+          verifyMediaDuration(probe, 60);
+          await library.exportJobs(jobs);
+          expect(library.items.where((item) => !item.merged), hasLength(3));
+          for (final item in library.items) {
+            final inspected = await FFmpegExecutor().probe(
+              library.fileFor(item),
+            );
+            verifyMediaDuration(inspected, item.merged ? 60 : 20);
+          }
+          binding.reportData ??= {};
+          binding.reportData!['localMedia'] = {
+            'mergeDuration': probe.duration,
+            'videoTranscodes': merged.videoTranscodes,
+            'exports': 3,
+          };
+          for (final item in library.items.toList()) {
+            await library.remove(item);
+          }
+        } finally {
+          library.dispose();
+        }
         final status = await fixtureControl('status');
         expect(
           status['deniedRequests'],
@@ -591,5 +625,79 @@ void main() {
       }
     },
     timeout: const Timeout(Duration(minutes: 4)),
+  );
+
+  testWidgets(
+    'Android foreground service continues a slow download after minimizing',
+    (tester) async {
+      final repository = DownloadFixtureRepository();
+      await repository.initialize();
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setBool('autoExport', false);
+      final store = LocalStore(preferences);
+      const drama = Drama(
+        id: 'hongguo:700009',
+        source: 'hongguo',
+        title: '后台下载合成验证',
+        episodes: 1,
+      );
+      final episode = Episode({
+        'id': 'slow',
+        'currentEpisode': 1,
+        'videoUrl': '$fixtureBase/clear.mp4?slow=1',
+        'referer': '$fixtureBase/',
+      }, 1);
+      await fixtureControl('online');
+      for (final job in await repository.downloads()) {
+        if (job.drama.id == drama.id) {
+          await repository.controlDownloads('remove', id: job.id);
+        }
+      }
+      try {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: DownloadsScreen(repository: repository, store: store),
+          ),
+        );
+        await repository.enqueueDownloads(DramaDetail(drama, [episode]), [
+          episode,
+        ]);
+        expect(await FlutterForegroundTask.isRunningService, isTrue);
+        final before = (await repository.downloads())
+            .firstWhere((job) => job.drama.id == drama.id)
+            .bytes;
+        FlutterForegroundTask.minimizeApp();
+        await Future<void>.delayed(const Duration(seconds: 4));
+        final after = (await repository.downloads()).firstWhere(
+          (job) => job.drama.id == drama.id,
+        );
+        expect(after.bytes, greaterThan(before));
+        expect(after.state, isNot('failed'), reason: after.error);
+        expect(await FlutterForegroundTask.isRunningService, isTrue);
+        FlutterForegroundTask.launchApp();
+        await tester.pump(const Duration(seconds: 1));
+        await repository.controlDownloads('pause', id: after.id);
+        final paused = (await repository.downloads()).firstWhere(
+          (job) => job.id == after.id,
+        );
+        expect(paused.state, anyOf('paused', 'completed'));
+        binding.reportData ??= {};
+        binding.reportData!['backgroundDownload'] = {
+          'before': before,
+          'after': after.bytes,
+          'serviceRunning': true,
+        };
+      } finally {
+        FlutterForegroundTask.launchApp();
+        await tester.pumpWidget(const SizedBox.shrink());
+        for (final job in await repository.downloads()) {
+          if (job.drama.id == drama.id) {
+            await repository.controlDownloads('remove', id: job.id);
+          }
+        }
+        store.dispose();
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
   );
 }

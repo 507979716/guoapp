@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'app_layout.dart';
 import 'core_bridge.dart';
 import 'local_store.dart';
+import 'local_media_screen.dart';
 import 'models.dart';
 import 'player_screen.dart';
 import 'remote_widgets.dart';
@@ -347,6 +349,19 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                     selected: _filter == filter.key,
                     onSelected: (_) => setState(() => _filter = filter.key),
                   ),
+              TextButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => LocalMediaScreen(
+                      repository: widget.repository,
+                      store: widget.store,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.video_library_outlined),
+                label: const Text('本地媒体'),
+              ),
               PopupMenuButton<String>(
                 tooltip: '队列操作',
                 onSelected: (command) => _control(command),
@@ -366,10 +381,12 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
             ],
           ),
         ),
-        const Padding(
-          padding: EdgeInsets.fromLTRB(18, 8, 18, 10),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 10),
           child: Text(
-            '下载时请保持应用运行，重开后可继续。已下载的视频可断网播放。',
+            Platform.isAndroid
+                ? '支持后台下载，可在通知中查看进度和暂停。已下载视频可断网播放。'
+                : '下载时请保持应用运行，重开后可继续。已下载视频可断网播放。',
             style: TextStyle(color: Color(0xFFABA8B4)),
           ),
         ),

@@ -23,14 +23,14 @@ EXCLUDED_DIRECTORIES = {
     '.git', '.dart_tool', '.pub-cache', '.gradle', '.cxx', '.kotlin',
     '.idea', '.vscode', '__pycache__', '.pytest_cache', '.mypy_cache',
     '.ruff_cache', '.cache', '.venv', 'venv', 'build', 'dist', 'coverage',
-    'node_modules', 'vendor', 'Pods', 'Carthage', 'DerivedData', '.swiftpm',
+    'node_modules', 'vendor', 'Pods', 'Carthage', 'DerivedData', '.swiftpm', 'xcuserdata',
     '.symlinks', 'ephemeral', 'jniLibs', 'CMakeFiles', 'sdk', 'android-sdk',
     'flutter-sdk', 'ndk', 'toolchains',
 }
 EXCLUDED_NAMES = {
     '.DS_Store', 'Thumbs.db', 'local.properties', 'key.properties',
     '.packages', 'GeneratedPluginRegistrant.java', 'Generated.xcconfig',
-    'flutter_export_environment.sh',
+    'flutter_export_environment.sh', 'GeneratedPluginRegistrant.h', 'GeneratedPluginRegistrant.m',
 }
 EXCLUDED_PATTERNS = (
     '.flutter-plugins*', '*.iml', '*.log', '*.pyc', '*.pyo', '*.class',

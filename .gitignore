@@ -30,3 +30,11 @@ venv/
 !.env.template
 *.p12
 *.pfx
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/ephemeral/
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Runner/GeneratedPluginRegistrant.*
+ios/DuanjuCore/*.xcframework/
+**/xcuserdata/

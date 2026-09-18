@@ -37,6 +37,7 @@ jobs:
       - run: flutter pub get --enforce-lockfile
       - run: dart format --output=none --set-exit-if-changed lib test integration_test test_driver
       - run: dart analyze lib test integration_test test_driver
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: flutter test --dart-define=DISABLE_REMOTE_IMAGES=true
       - run: go test -race ./...
         working-directory: native
@@ -77,7 +78,7 @@ jobs:
         run: python scripts/configure_signing.py --clean
       - uses: actions/upload-artifact@v4
         with:
-          name: duanju-android
+          name: zhenguojian-android
           path: dist/android/*
           if-no-files-found: error
           retention-days: 14
@@ -103,9 +104,37 @@ jobs:
         with:
           platform: x64
       - run: ./scripts/build_windows.ps1
+      - run: choco install ffmpeg --no-progress -y
+      - run: python scripts/smoke_windows.py
       - uses: actions/upload-artifact@v4
         with:
-          name: duanju-windows
+          name: zhenguojian-windows
           path: dist/windows/*
+          if-no-files-found: error
+          retention-days: 14
+
+  ios:
+    needs: checks
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: native/go.mod
+          cache-dependency-path: native/go.sum
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.4'
+          channel: stable
+          cache: true
+      - run: python3 scripts/build_ios.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zhenguojian-ios-unsigned
+          path: dist/ios/*
           if-no-files-found: error
           retention-days: 14

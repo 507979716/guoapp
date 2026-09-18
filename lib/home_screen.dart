@@ -11,6 +11,9 @@ import 'local_store.dart';
 import 'models.dart';
 import 'remote_widgets.dart';
 import 'widgets.dart';
+import 'settings_screen.dart';
+import 'profiles_screen.dart';
+import 'search_input.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.repository, required this.store});
@@ -75,6 +78,9 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (_) => TelevisionSearchDialog(
         initialValue: _search.text,
         title: _source.onlineSearch ? '搜索红果短剧' : '筛选当前已加载短剧',
+        suggestions: _source.onlineSearch
+            ? widget.repository.suggestions
+            : null,
       ),
     );
     if (query != null && mounted) {
@@ -101,7 +107,11 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _source = SourceSite.byId(widget.store.source);
-    _load(useCache: true);
+    if (widget.store.sources.isNotEmpty) {
+      _load(useCache: true);
+    } else {
+      _loading = false;
+    }
   }
 
   @override
@@ -223,8 +233,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void _searchChanged(String query) {
     _debounce?.cancel();
     setState(() {});
-    if (_source.onlineSearch) {
-      _debounce = Timer(const Duration(milliseconds: 500), () => _load());
+    if (_source.onlineSearch && query.trim().isEmpty) {
+      _debounce = Timer(const Duration(milliseconds: 300), () => _load());
     }
   }
 
@@ -272,7 +282,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(width: 9),
                 const Text(
-                  '短剧库',
+                  '真果鉴',
                   style: TextStyle(fontWeight: FontWeight.w800),
                 ),
               ],
@@ -287,12 +297,29 @@ class _HomeScreenState extends State<HomeScreen> {
               PopupMenuButton<String>(
                 tooltip: '更多',
                 onSelected: (value) {
-                  if (value == 'display') {
+                  if (value == 'settings') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => SettingsScreen(
+                          repository: widget.repository,
+                          store: widget.store,
+                        ),
+                      ),
+                    );
+                  } else if (value == 'users') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => ProfilesScreen(store: widget.store),
+                      ),
+                    );
+                  } else if (value == 'display') {
                     _chooseDisplayMode();
                   } else if (value == 'about') {
                     showAboutDialog(
                       context: context,
-                      applicationName: '短剧库',
+                      applicationName: '真果鉴',
                       applicationVersion: AppLayout.versionOf(context),
                       applicationIcon: const Icon(
                         Icons.play_circle_filled_rounded,
@@ -306,8 +333,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   }
                 },
                 itemBuilder: (_) => [
+                  const PopupMenuItem(value: 'users', child: Text('用户管理')),
+                  const PopupMenuItem(value: 'settings', child: Text('设置与备份')),
                   const PopupMenuItem(value: 'display', child: Text('界面模式')),
-                  const PopupMenuItem(value: 'about', child: Text('关于短剧库')),
+                  const PopupMenuItem(value: 'about', child: Text('关于真果鉴')),
                 ],
               ),
               const SizedBox(width: 8),
@@ -325,11 +354,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          for (final entry in const [
+                          for (final entry in [
                             (Icons.explore_rounded, '发现'),
                             (Icons.bookmark_rounded, '追剧'),
                             (Icons.history_rounded, '最近观看'),
-                            (Icons.download_rounded, '下载'),
+                            if (widget.store.canDownload)
+                              (Icons.download_rounded, '下载'),
                           ].indexed)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 14),
@@ -357,7 +387,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     labelType: NavigationRailLabelType.all,
                     backgroundColor: const Color(0xFF101114),
                     groupAlignment: -.8,
-                    destinations: const [
+                    destinations: [
                       NavigationRailDestination(
                         icon: Icon(Icons.explore_outlined),
                         selectedIcon: Icon(Icons.explore),
@@ -372,11 +402,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         icon: Icon(Icons.history_rounded),
                         label: Text('最近观看'),
                       ),
-                      NavigationRailDestination(
-                        icon: Icon(Icons.download_outlined),
-                        selectedIcon: Icon(Icons.download_rounded),
-                        label: Text('下载'),
-                      ),
+                      if (widget.store.canDownload)
+                        NavigationRailDestination(
+                          icon: Icon(Icons.download_outlined),
+                          selectedIcon: Icon(Icons.download_rounded),
+                          label: Text('下载'),
+                        ),
                     ],
                   ),
                   const VerticalDivider(
@@ -387,7 +418,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
                 Expanded(
                   child: _tab == 0
-                      ? _catalog()
+                      ? widget.store.sources.isEmpty
+                            ? const StatusPanel(
+                                title: '暂无可用站源',
+                                message: '请联系管理员为当前用户开放站源。',
+                              )
+                            : _catalog()
                       : _tab == 3
                       ? DownloadsScreen(
                           repository: widget.repository,
@@ -406,7 +442,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   onDestinationSelected: (value) => setState(() {
                     _tab = value;
                   }),
-                  destinations: const [
+                  destinations: [
                     NavigationDestination(
                       icon: Icon(Icons.explore_outlined),
                       selectedIcon: Icon(Icons.explore),
@@ -421,11 +457,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       icon: Icon(Icons.history_rounded),
                       label: '最近观看',
                     ),
-                    NavigationDestination(
-                      icon: Icon(Icons.download_outlined),
-                      selectedIcon: Icon(Icons.download_rounded),
-                      label: '下载',
-                    ),
+                    if (widget.store.canDownload)
+                      NavigationDestination(
+                        icon: Icon(Icons.download_outlined),
+                        selectedIcon: Icon(Icons.download_rounded),
+                        label: '下载',
+                      ),
                   ],
                 ),
         );
@@ -461,7 +498,7 @@ class _HomeScreenState extends State<HomeScreen> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  for (final source in SourceSite.values)
+                  for (final source in widget.store.sources)
                     RemoteButton(
                       key: ValueKey('tv-source-${source.id}'),
                       label: source.name,
@@ -481,30 +518,22 @@ class _HomeScreenState extends State<HomeScreen> {
         else ...[
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: TextField(
+            child: SearchInput(
+              key: ValueKey('search-${_source.id}'),
               controller: _search,
-              textInputAction: TextInputAction.search,
+              hint: _source.onlineSearch ? '搜索红果短剧' : '筛选当前已加载短剧',
+              suggestions: _source.onlineSearch
+                  ? widget.repository.suggestions
+                  : null,
               onChanged: _searchChanged,
-              onSubmitted: (_) {
+              onSearch: (_) {
                 _debounce?.cancel();
                 if (_source.onlineSearch) {
                   _load();
+                } else {
+                  setState(() {});
                 }
               },
-              decoration: InputDecoration(
-                hintText: _source.onlineSearch ? '搜索红果短剧' : '筛选当前已加载短剧',
-                prefixIcon: const Icon(Icons.search_rounded),
-                suffixIcon: _search.text.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: '清空搜索',
-                        onPressed: () {
-                          _search.clear();
-                          _searchChanged('');
-                        },
-                        icon: const Icon(Icons.close_rounded),
-                      ),
-              ),
             ),
           ),
           SizedBox(
@@ -512,10 +541,10 @@ class _HomeScreenState extends State<HomeScreen> {
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               scrollDirection: Axis.horizontal,
-              itemCount: SourceSite.values.length,
+              itemCount: widget.store.sources.length,
               separatorBuilder: (_, index) => const SizedBox(width: 8),
               itemBuilder: (_, index) {
-                final source = SourceSite.values[index];
+                final source = widget.store.sources[index];
                 return Center(
                   child: ChoiceChip(
                     label: Text(source.name),

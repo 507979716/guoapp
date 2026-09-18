@@ -2,7 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-const appVersion = '0.1.4';
+const appName = '真果鉴';
+const appVersion = '0.2.0';
 
 ThemeData televisionTheme(ThemeData theme) {
   final focusSide = WidgetStateProperty.resolveWith<BorderSide?>(

@@ -26,22 +26,22 @@ if options.platform == 'android':
         with zipfile.ZipFile(source) as archive:
             names = set(archive.namelist())
             required = [f'lib/{abi}/{library}' for library in
-                        ['libduanju_core.so', 'libflutter.so', 'libapp.so', 'libmpv.so']]
+                        ['libduanju_core.so', 'libflutter.so', 'libapp.so', 'libmpv.so', 'libffmpegkit.so']]
             missing = set(required) - names
             if missing:
                 raise SystemExit('APK 缺少原生库：' + ', '.join(sorted(missing)))
-        target = output / f'duanju-{version}-{abi}.apk'
+        target = output / f'zhenguojian-{version}-{abi}.apk'
         shutil.copy2(source, target)
         artifacts.append(target)
 else:
     bundle = root / 'build' / 'windows' / 'x64' / 'runner' / 'Release'
-    required = ['duanju_app.exe', 'duanju_core.dll', 'flutter_windows.dll',
+    required = ['zhenguojian.exe', 'duanju_core.dll', 'flutter_windows.dll', 'libffmpegkit.dll',
                 'libmpv-2.dll', 'msvcp140.dll', 'vcruntime140.dll',
                 'data/icudtl.dat', 'data/app.so']
     missing = [name for name in required if not (bundle / name).is_file()]
     if missing:
         raise SystemExit('Windows 安装包缺少文件：' + ', '.join(missing))
-    target = output / f'duanju-{version}-windows-x64.zip'
+    target = output / f'zhenguojian-{version}-windows-x64.zip'
     with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as archive:
         for source in sorted(bundle.rglob('*')):
             if source.is_file():

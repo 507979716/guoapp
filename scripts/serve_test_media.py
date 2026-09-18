@@ -3,8 +3,9 @@ import functools
 import http.server
 import json
 import threading
+import time
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 root = Path(__file__).resolve().parents[1]
 
@@ -19,6 +20,20 @@ class MediaServer(http.server.ThreadingHTTPServer):
 
 
 class MediaHandler(http.server.SimpleHTTPRequestHandler):
+    def copyfile(self, source, outputfile):
+        if parse_qs(urlsplit(self.path).query).get('slow') != ['1']:
+            return super().copyfile(source, outputfile)
+        try:
+            while True:
+                block = source.read(2048)
+                if not block:
+                    return
+                outputfile.write(block)
+                outputfile.flush()
+                time.sleep(0.08)
+        except (BrokenPipeError, ConnectionResetError):
+            return
+
     def status(self):
         with self.server.state_lock:
             body = json.dumps({'offline': self.server.offline,

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'search_input.dart';
 import 'package:flutter/services.dart';
 
 class RemoteTarget extends StatefulWidget {
@@ -371,7 +373,9 @@ class TelevisionSearchDialog extends StatefulWidget {
     super.key,
     required this.initialValue,
     required this.title,
+    this.suggestions,
   });
+  final Future<List<String>> Function(String)? suggestions;
   final String initialValue;
   final String title;
 
@@ -392,12 +396,12 @@ class _TelevisionSearchDialogState extends State<TelevisionSearchDialog> {
     title: Text(widget.title),
     content: SizedBox(
       width: 460,
-      child: TextField(
+      child: SearchInput(
         autofocus: true,
         controller: _controller,
-        textInputAction: TextInputAction.search,
-        onSubmitted: (value) => Navigator.pop(context, value.trim()),
-        decoration: const InputDecoration(hintText: '输入剧名'),
+        hint: '输入剧名',
+        suggestions: widget.suggestions,
+        onSearch: (value) => Navigator.pop(context, value),
       ),
     ),
     actions: [

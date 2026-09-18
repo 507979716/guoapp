@@ -9,6 +9,8 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
 import 'models.dart';
+import 'background_downloads.dart';
+import 'local_store.dart';
 
 typedef _NativeRequest = Pointer<Utf8> Function(Pointer<Utf8>);
 typedef _DartRequest = Pointer<Utf8> Function(Pointer<Utf8>);
@@ -57,6 +59,13 @@ class AppFailure implements Exception {
 }
 
 abstract class AppRepository {
+  Future<List<String>> suggestions(String query) async => const [];
+  Future<Map<String, dynamic>> storage() async => {};
+  Future<String> downloadDirectory() async =>
+      (await storage())['directory'] as String? ?? '';
+  Future<void> moveDownloads(String directory) async =>
+      throw AppFailure('当前环境不支持迁移');
+  Future<int> workLease(String id, String command) async => 0;
   bool get supportsDownloads => false;
   Future<List<DownloadJob>> downloads() async => [];
   Future<int> enqueueDownloads(
@@ -89,14 +98,112 @@ abstract class AppRepository {
 }
 
 class NativeRepository extends AppRepository {
+  NativeRepository({this.background = false});
+  final bool background;
+  LocalStore? access;
+
+  void _authorize(String source, {bool download = false}) {
+    if (access == null) return;
+    if (access!.locked ||
+        !access!.allowsSource(source) ||
+        download && !access!.canDownload) {
+      throw AppFailure('当前用户没有此操作权限');
+    }
+  }
+
+  void _downloadPermission() {
+    if (access != null && (access!.locked || !access!.canDownload)) {
+      throw AppFailure('当前用户仅支持在线观看');
+    }
+  }
+
+  @override
+  Future<List<String>> suggestions(String query) async {
+    _authorize('hongguo');
+    final result = await _call({'action': 'suggestions', 'query': query});
+    return (result['items'] as List? ?? []).whereType<String>().toList();
+  }
+
+  @override
+  Future<String> downloadDirectory() async {
+    _downloadPermission();
+    return (await _call({'action': 'downloadDirectory'}))['directory']
+            as String? ??
+        '';
+  }
+
+  @override
+  Future<Map<String, dynamic>> storage() async {
+    _downloadPermission();
+    return _call({'action': 'storage'});
+  }
+
+  @override
+  Future<void> moveDownloads(String directory) async {
+    _downloadPermission();
+    if (access != null && !access!.profile.admin) {
+      throw AppFailure('仅管理员可更改下载目录');
+    }
+    await BackgroundDownloads.ensureStarted();
+    await workLease('storage', 'start');
+    try {
+      await _call({'action': 'moveDownloads', 'directory': directory});
+    } finally {
+      await workLease('storage', 'end');
+    }
+  }
+
+  @override
+  Future<int> workLease(String id, String command) async => intValue(
+    (await _call({
+      'action': 'workLease',
+      'jobId': id,
+      'command': command,
+    }))['count'],
+  );
   int _playbackSequence = DateTime.now().microsecondsSinceEpoch;
 
   Future<Map<String, dynamic>> _call(Map<String, dynamic> input) async {
     try {
+      final action = input['action'] as String;
+      final unrestricted =
+          {'initialize', 'release', 'cancelPlayback'}.contains(action) ||
+          action == 'workLease' && input['command'] == 'end';
+      final epoch = access?.profileEpoch;
+      if (!unrestricted && access?.locked == true) throw AppFailure('请先解锁当前用户');
+      if ({'catalog', 'cached'}.contains(action)) {
+        _authorize(input['source'] as String);
+      }
+      if ({
+        'cover',
+        'detail',
+        'resolve',
+        'enqueueDownloads',
+        'localPlayback',
+      }.contains(action)) {
+        _authorize(
+          (input['drama'] as Map)['source'] as String,
+          download: action == 'enqueueDownloads' || action == 'localPlayback',
+        );
+      }
+      if (!unrestricted &&
+          {
+            'downloads',
+            'controlDownloads',
+            'storage',
+            'downloadDirectory',
+            'moveDownloads',
+            'workLease',
+          }.contains(action)) {
+        _downloadPermission();
+      }
+      if (action == 'resolve' && access != null && !access!.canDownload) {
+        input['force'] = true;
+      }
       final body = jsonEncode(input);
-      final encoded = await Isolate.run(
-        () => _nativeRequest(body),
-      ).timeout(const Duration(seconds: 70));
+      final encoded = await Isolate.run(() => _nativeRequest(body)).timeout(
+        Duration(seconds: input['action'] == 'moveDownloads' ? 620 : 70),
+      );
       final response = jsonDecode(encoded) as Map<String, dynamic>;
       if (response['ok'] != true) {
         throw AppFailure(
@@ -105,6 +212,15 @@ class NativeRepository extends AppRepository {
         );
       }
       final data = response['data'];
+      if (!unrestricted && epoch != access?.profileEpoch) {
+        if (data is Map && data['session'] is String) {
+          await release(data['session'] as String);
+        }
+        if (action == 'workLease' && input['command'] == 'start') {
+          await workLease(input['jobId'] as String, 'end');
+        }
+        throw AppFailure('用户已切换，请重新操作');
+      }
       return data is Map ? Map<String, dynamic>.from(data) : {};
     } on AppFailure {
       rethrow;
@@ -119,6 +235,7 @@ class NativeRepository extends AppRepository {
   Future<void> initialize() async {
     final directory = await getApplicationSupportDirectory();
     await _call({'action': 'initialize', 'directory': directory.path});
+    if (!background) await BackgroundDownloads.prepare();
   }
 
   @override
@@ -187,7 +304,7 @@ class NativeRepository extends AppRepository {
   }
 
   @override
-  bool get supportsDownloads => true;
+  bool get supportsDownloads => access?.canDownload ?? true;
 
   @override
   Future<List<DownloadJob>> downloads() async {
@@ -195,6 +312,9 @@ class NativeRepository extends AppRepository {
     return (result['jobs'] as List? ?? [])
         .whereType<Map>()
         .map((value) => DownloadJob.fromJson(Map<String, dynamic>.from(value)))
+        .where(
+          (job) => access == null || access!.allowsSource(job.drama.source),
+        )
         .toList();
   }
 
@@ -204,6 +324,8 @@ class NativeRepository extends AppRepository {
     List<Episode> episodes, {
     int quality = 0,
   }) async {
+    _authorize(detail.drama.source, download: true);
+    await BackgroundDownloads.ensureStarted();
     final result = await _call({
       'action': 'enqueueDownloads',
       'drama': detail.drama.toJson(),
@@ -217,6 +339,28 @@ class NativeRepository extends AppRepository {
 
   @override
   Future<void> controlDownloads(String command, {String id = ''}) async {
+    _downloadPermission();
+    if (command == 'resume' || command == 'resumeAll') {
+      await BackgroundDownloads.ensureStarted();
+    }
+    if (access != null && !access!.profile.admin) {
+      final visible = await downloads();
+      if (command == 'pauseAll' || command == 'resumeAll') {
+        for (final job in visible.where(
+          (job) => command == 'pauseAll' ? job.active : job.resumable,
+        )) {
+          await _call({
+            'action': 'controlDownloads',
+            'command': command == 'pauseAll' ? 'pause' : 'resume',
+            'jobId': job.id,
+          });
+        }
+        return;
+      }
+      if (!visible.any((job) => job.id == id)) {
+        throw AppFailure('当前用户没有此下载任务权限');
+      }
+    }
     await _call({
       'action': 'controlDownloads',
       'command': command,

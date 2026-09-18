@@ -56,6 +56,8 @@ type nativeDownloads struct {
 	jobs      map[string]*nativeDownloadRecord
 	active    map[string]context.CancelFunc
 	closed    bool
+	moving    bool
+	mediaBusy bool
 	loadErr   error
 	workers   sync.WaitGroup
 	lastSaved time.Time
@@ -68,7 +70,7 @@ func nativeDownloadID(drama string, episode int) string {
 }
 
 func newNativeDownloads(engine *nativeEngine) *nativeDownloads {
-	manager := &nativeDownloads{root: filepath.Join(engine.directory, "downloads"), engine: engine,
+	manager := &nativeDownloads{root: nativeDownloadLocation(engine.directory), engine: engine,
 		jobs: map[string]*nativeDownloadRecord{}, active: map[string]context.CancelFunc{}}
 	manager.resolve = func(ctx context.Context, job nativeDownloadJob) (providerMedia, error) {
 		return engine.downloader.resolveProviderMedia(ctx, Task{
@@ -193,8 +195,8 @@ func (manager *nativeDownloads) enqueue(input nativeInput) (int, error) {
 	}
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
-	if manager.closed {
-		return 0, errors.New("下载队列已关闭")
+	if manager.closed || manager.moving {
+		return 0, errors.New("下载目录正在迁移或队列已关闭，请稍后重试")
 	}
 	if manager.loadErr != nil {
 		return 0, manager.loadErr
@@ -232,8 +234,11 @@ func (manager *nativeDownloads) control(id, action string) error {
 	if manager.loadErr != nil {
 		return manager.loadErr
 	}
-	if manager.closed {
-		return errors.New("下载队列已关闭")
+	if manager.closed || manager.moving {
+		return errors.New("下载目录正在迁移或队列已关闭，请稍后重试")
+	}
+	if action == "remove" && manager.mediaBusy {
+		return errors.New("请等待合并或导出完成后再删除分集")
 	}
 	switch action {
 	case "pauseAll", "resumeAll":
@@ -287,7 +292,7 @@ func (manager *nativeDownloads) control(id, action string) error {
 }
 
 func (manager *nativeDownloads) scheduleLocked() {
-	if manager.closed {
+	if manager.closed || manager.moving {
 		return
 	}
 	for len(manager.active) < 2 {

@@ -26,6 +26,8 @@ class PlayerScreen extends StatefulWidget {
     required this.store,
     this.initialPosition = 0,
     this.localOnly = false,
+    this.allowOnlineFallback = true,
+    this.mediaId,
     this.playerFactory,
     this.videoBuilder,
   });
@@ -33,6 +35,8 @@ class PlayerScreen extends StatefulWidget {
   final int initialIndex;
   final double initialPosition;
   final bool localOnly;
+  final bool allowOnlineFallback;
+  final String? mediaId;
   final AppRepository repository;
   final LocalStore store;
   @visibleForTesting
@@ -255,7 +259,9 @@ class _PlayerScreenState extends State<PlayerScreen>
           _loading = false;
           _localFailure = current.local;
           _error = current.local
-              ? '本地视频读取失败，请重试或重新下载；也可以手动改为在线播放。'
+              ? widget.allowOnlineFallback
+                    ? '本地视频读取失败，请重试或重新下载；也可以手动改为在线播放。'
+                    : '本地成品读取失败，请重试或重新生成。'
               : '自动恢复未成功，请检查网络后重试，也可换一集或选择其他清晰度。';
         });
       }
@@ -289,7 +295,11 @@ class _PlayerScreenState extends State<PlayerScreen>
     );
     try {
       await Future<void>.value();
-      await store.saveWatch(entry);
+      if (widget.mediaId == null) {
+        await store.saveWatch(entry);
+      } else {
+        await store.saveMediaWatch(widget.mediaId!, entry);
+      }
     } catch (_) {}
   }
 
@@ -761,7 +771,7 @@ class _PlayerScreenState extends State<PlayerScreen>
               message: _error!,
               onRetry: () => _retry(),
               action: _localFailure ? '重试本地播放' : '重试播放',
-              secondaryAction: _localFailure
+              secondaryAction: _localFailure && widget.allowOnlineFallback
                   ? TextButton.icon(
                       onPressed: _switchOnline,
                       icon: const Icon(Icons.cloud_outlined),

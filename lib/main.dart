@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,13 +12,20 @@ import 'core_bridge.dart';
 import 'app_layout.dart';
 import 'home_screen.dart';
 import 'local_store.dart';
+import 'profiles_screen.dart';
+import 'media_library.dart';
+import 'package_smoke.dart';
 
-Future<void> main() async {
+Future<void> main(List<String> arguments) async {
   WidgetsFlutterBinding.ensureInitialized();
   if (Platform.isWindows) {
     await windowManager.ensureInitialized();
   }
   MediaKit.ensureInitialized();
+  if (Platform.isWindows && arguments.firstOrNull == '--package-smoke') {
+    await runPackageSmoke(arguments);
+    return;
+  }
   runApp(const AppBootstrap());
 }
 
@@ -27,7 +35,8 @@ class AppBootstrap extends StatefulWidget {
   State<AppBootstrap> createState() => _AppBootstrapState();
 }
 
-class _AppBootstrapState extends State<AppBootstrap> {
+class _AppBootstrapState extends State<AppBootstrap>
+    with WidgetsBindingObserver {
   final repository = NativeRepository();
   LocalStore? store;
   Object? error;
@@ -35,6 +44,9 @@ class _AppBootstrapState extends State<AppBootstrap> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    MediaLibrary.current?.dispose();
+    MediaLibrary.current = null;
     store?.dispose();
     super.dispose();
   }
@@ -42,7 +54,28 @@ class _AppBootstrapState extends State<AppBootstrap> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initialize();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!Platform.isIOS) return;
+    final library = MediaLibrary.current;
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      if (library != null) {
+        library.suspended = true;
+        unawaited(library.cancel());
+      }
+      unawaited(
+        NativeRepository(
+          background: true,
+        ).controlDownloads('pauseAll').catchError((Object _) {}),
+      );
+    } else if (state == AppLifecycleState.resumed) {
+      if (library != null) library.suspended = false;
+    }
   }
 
   Future<void> _initialize() async {
@@ -56,6 +89,8 @@ class _AppBootstrapState extends State<AppBootstrap> {
       if (mounted) {
         setState(() {
           store = LocalStore(preferences);
+          repository.access = store;
+          MediaLibrary.attach(repository, store!);
         });
       }
     } catch (failure) {
@@ -97,7 +132,7 @@ class DuanjuApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: '短剧库',
+    title: '真果鉴',
     debugShowCheckedModeBanner: false,
     locale: const Locale('zh', 'CN'),
     supportedLocales: const [Locale('zh', 'CN')],
@@ -162,7 +197,18 @@ class DuanjuApp extends StatelessWidget {
       ),
     ),
     home: store != null
-        ? HomeScreen(repository: repository, store: store!)
+        ? AnimatedBuilder(
+            animation: store!,
+            builder: (_, _) => store!.locked
+                ? ProfilesScreen(store: store!, locked: true)
+                : HomeScreen(
+                    key: ValueKey(
+                      'profile-${store!.profile.id}-${store!.profileEpoch}',
+                    ),
+                    repository: repository,
+                    store: store!,
+                  ),
+          )
         : Scaffold(
             body: Center(
               child: Padding(
@@ -177,7 +223,7 @@ class DuanjuApp extends StatelessWidget {
                     ),
                     const SizedBox(height: 24),
                     Text(
-                      bootstrapError ?? '正在打开短剧库',
+                      bootstrapError ?? '正在打开真果鉴',
                       textAlign: TextAlign.center,
                       style: const TextStyle(fontSize: 18),
                     ),

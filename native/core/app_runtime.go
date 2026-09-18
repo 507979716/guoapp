@@ -107,6 +107,7 @@ type nativePlan struct {
 }
 
 type nativeEngine struct {
+	work             map[string]bool
 	downloads        *nativeDownloads
 	downloader       *Downloader
 	directory        string
@@ -240,16 +241,35 @@ func nativeDispatch(input nativeInput) (any, error) {
 			nativeState.engine = engine
 		}
 		nativeState.Unlock()
-		return map[string]any{"version": "0.1.4", "standalone": true}, nil
+		return map[string]any{"version": "0.2.0", "standalone": true}, nil
 	}
 	engine := nativeState.engine
 	nativeState.Unlock()
 	if engine == nil {
 		return nil, errors.New("应用核心尚未就绪，请重新打开应用")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	duration := 60 * time.Second
+	if input.Action == "moveDownloads" {
+		duration = 10 * time.Minute
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()
 	switch input.Action {
+	case "suggestions":
+		items, err := engine.suggestions(ctx, input.Query)
+		return map[string]any{"items": items}, err
+	case "downloadDirectory":
+		engine.downloads.mu.Lock()
+		root := engine.downloads.root
+		engine.downloads.mu.Unlock()
+		return map[string]string{"directory": root}, nil
+	case "storage":
+		return engine.storage()
+	case "moveDownloads":
+		return true, engine.moveDownloads(ctx, input.Directory)
+	case "workLease":
+		count, err := engine.workLease(input.JobID, input.Command)
+		return map[string]int{"count": count}, err
 	case "downloads":
 		jobs, err := engine.downloads.snapshot()
 		return map[string]any{"jobs": jobs}, err

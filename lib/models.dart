@@ -205,7 +205,9 @@ class DownloadJob {
     this.quality = 0,
     this.actualQuality = 0,
     this.error = '',
+    this.created = 0,
   });
+  final int created;
   final String id;
   final Drama drama;
   final Episode episode;
@@ -242,6 +244,7 @@ class DownloadJob {
     quality: intValue(value['quality']),
     actualQuality: intValue(value['actualQuality']),
     error: value['error'] as String? ?? '',
+    created: intValue(value['created']),
   );
 }
 
