@@ -275,16 +275,20 @@ class _DetailScreenState extends State<DetailScreen> {
                                             (drama.episodes > 0
                                                 ? ' · 共 ${drama.episodes} 集'
                                                 : ''),
-                                        style: const TextStyle(
-                                          color: Color(0xFFABA8B4),
+                                        style: TextStyle(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurfaceVariant,
                                         ),
                                       ),
                                       if (drama.category.isNotEmpty) ...[
                                         const SizedBox(height: 8),
                                         Text(
                                           drama.category,
-                                          style: const TextStyle(
-                                            color: Color(0xFFABA8B4),
+                                          style: TextStyle(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onSurfaceVariant,
                                           ),
                                         ),
                                       ],
@@ -321,8 +325,10 @@ class _DetailScreenState extends State<DetailScreen> {
                                 drama.description,
                                 maxLines: 6,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Color(0xFFADABB5),
+                                style: TextStyle(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                                   height: 1.6,
                                 ),
                               ),
@@ -358,8 +364,10 @@ class _DetailScreenState extends State<DetailScreen> {
                                   const SizedBox(width: 10),
                                   Text(
                                     '共 ${episodes.length} 集',
-                                    style: const TextStyle(
-                                      color: Color(0xFF9996A4),
+                                    style: TextStyle(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
                                     ),
                                   ),
                                 ],
@@ -386,14 +394,18 @@ class _DetailScreenState extends State<DetailScreen> {
                                   style: OutlinedButton.styleFrom(
                                     padding: EdgeInsets.zero,
                                     backgroundColor: current
-                                        ? const Color(0xFF452A27)
+                                        ? Theme.of(
+                                            context,
+                                          ).colorScheme.primaryContainer
                                         : null,
                                     side: BorderSide(
                                       color: current
                                           ? Theme.of(
                                               context,
                                             ).colorScheme.primary
-                                          : const Color(0xFF33343D),
+                                          : Theme.of(
+                                              context,
+                                            ).colorScheme.outlineVariant,
                                     ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
@@ -405,9 +417,11 @@ class _DetailScreenState extends State<DetailScreen> {
                                       Text('${episode.number}'),
                                       if (episode.vip) ...[
                                         const SizedBox(width: 4),
-                                        const Icon(
+                                        Icon(
                                           Icons.workspace_premium_rounded,
-                                          color: Color(0xFFF6C86B),
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.tertiary,
                                           size: 14,
                                         ),
                                       ],
@@ -471,7 +485,11 @@ class _DetailScreenState extends State<DetailScreen> {
                           const SizedBox(height: 12),
                           Text(
                             SourceSite.byId(drama.source).name,
-                            style: const TextStyle(color: Color(0xFFABA8B4)),
+                            style: TextStyle(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
                           ),
                           if (episodes.isNotEmpty)
                             Text('共 ${episodes.length} 集'),
@@ -486,10 +504,10 @@ class _DetailScreenState extends State<DetailScreen> {
                     drama.description,
                     maxLines: 4,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       height: 1.5,
-                      color: Color(0xFFADABB5),
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],

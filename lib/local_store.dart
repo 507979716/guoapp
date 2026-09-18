@@ -75,6 +75,11 @@ class LocalStore extends ChangeNotifier {
   bool isFavorite(String id) => !locked && _favorites.containsKey(id);
   bool get hideVip => preferences.getBool(_key('hideVip')) ?? true;
   String get displayMode => preferences.getString('displayMode') ?? 'auto';
+  String get themeMode {
+    final saved = preferences.getString('themeMode');
+    return {'light', 'dark', 'system'}.contains(saved) ? saved! : 'dark';
+  }
+
   bool get autoExport => preferences.getBool('autoExport') ?? false;
   bool get exportPosters => preferences.getBool('exportPosters') ?? false;
   Future<void> setExportPosters(bool value) async {
@@ -97,6 +102,12 @@ class LocalStore extends ChangeNotifier {
   Future<void> setDisplayMode(String value) async {
     if (!{'auto', 'television', 'standard'}.contains(value)) return;
     await preferences.setString('displayMode', value);
+    notifyListeners();
+  }
+
+  Future<void> setThemeMode(String value) async {
+    if (!{'light', 'dark', 'system'}.contains(value)) return;
+    await preferences.setString('themeMode', value);
     notifyListeners();
   }
 
@@ -344,6 +355,7 @@ class LocalStore extends ChangeNotifier {
       'app': 'zhenguojian',
       'profiles': _profiles.map((p) => p.toJson()).toList(),
       'displayMode': displayMode,
+      'themeMode': themeMode,
       'autoExport': autoExport,
       'exportPosters': exportPosters,
       'libraries': {
@@ -383,6 +395,10 @@ class LocalStore extends ChangeNotifier {
         (profiles.length > 1 &&
             !profiles.firstWhere((p) => p.admin).protected)) {
       throw const FormatException('备份用户配置无效');
+    }
+    if (data.containsKey('themeMode') &&
+        !{'light', 'dark', 'system'}.contains(data['themeMode'])) {
+      throw const FormatException('备份主题设置无效');
     }
     final libraries = data['libraries'] as Map;
     for (final p in profiles) {
@@ -466,6 +482,10 @@ class LocalStore extends ChangeNotifier {
       {'auto', 'television', 'standard'}.contains(mode)
           ? mode as String
           : 'auto',
+    );
+    await preferences.setString(
+      'themeMode',
+      data['themeMode'] as String? ?? themeMode,
     );
     await preferences.setBool('autoExport', data['autoExport'] == true);
     await preferences.setBool('exportPosters', data['exportPosters'] == true);

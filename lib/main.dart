@@ -10,6 +10,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'core_bridge.dart';
 import 'app_layout.dart';
+import 'app_theme.dart';
 import 'home_screen.dart';
 import 'local_store.dart';
 import 'profiles_screen.dart';
@@ -18,6 +19,10 @@ import 'package_smoke.dart';
 
 Future<void> main(List<String> arguments) async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (Platform.isAndroid) {
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setSystemUIOverlayStyle(AppTheme.systemBars(Brightness.dark));
+  }
   if (Platform.isWindows) {
     await windowManager.ensureInitialized();
   }
@@ -131,84 +136,61 @@ class DuanjuApp extends StatelessWidget {
   final String version;
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
+  Widget build(BuildContext context) => store == null
+      ? _application()
+      : AnimatedBuilder(animation: store!, builder: (_, _) => _application());
+
+  Widget _application() => MaterialApp(
     title: '真果鉴',
     debugShowCheckedModeBanner: false,
     locale: const Locale('zh', 'CN'),
     supportedLocales: const [Locale('zh', 'CN')],
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
+    theme: AppTheme.light,
+    darkTheme: AppTheme.dark,
+    themeMode: AppTheme.mode(store?.themeMode ?? 'dark'),
     builder: (context, child) {
-      Widget layout() {
-        final mode = store?.displayMode ?? 'auto';
-        final tv = mode == 'television' || mode == 'auto' && television;
-        return AppLayout(
-          television: tv,
-          version: version,
-          child: Theme(
-            data: tv ? televisionTheme(Theme.of(context)) : Theme.of(context),
-            child: Shortcuts(
-              shortcuts: const {
-                SingleActivator(
-                  LogicalKeyboardKey.select,
-                  includeRepeats: false,
-                ): ActivateIntent(),
-                SingleActivator(
-                  LogicalKeyboardKey.gameButtonA,
-                  includeRepeats: false,
-                ): ActivateIntent(),
-                SingleActivator(LogicalKeyboardKey.goBack): DismissIntent(),
-              },
-              child: FocusTraversalGroup(child: child!),
+      final mode = store?.displayMode ?? 'auto';
+      final tv = mode == 'television' || mode == 'auto' && television;
+      final theme = Theme.of(context);
+      return AnnotatedRegion<SystemUiOverlayStyle>(
+        value: AppTheme.systemBars(theme.brightness),
+        child: ColoredBox(
+          color: theme.scaffoldBackgroundColor,
+          child: AppLayout(
+            television: tv,
+            version: version,
+            child: Theme(
+              data: tv ? televisionTheme(theme) : theme,
+              child: Shortcuts(
+                shortcuts: const {
+                  SingleActivator(
+                    LogicalKeyboardKey.select,
+                    includeRepeats: false,
+                  ): ActivateIntent(),
+                  SingleActivator(
+                    LogicalKeyboardKey.gameButtonA,
+                    includeRepeats: false,
+                  ): ActivateIntent(),
+                  SingleActivator(LogicalKeyboardKey.goBack): DismissIntent(),
+                },
+                child: FocusTraversalGroup(child: child!),
+              ),
             ),
           ),
-        );
-      }
-
-      return store == null
-          ? layout()
-          : AnimatedBuilder(animation: store!, builder: (_, _) => layout());
-    },
-    theme: ThemeData(
-      useMaterial3: true,
-      brightness: Brightness.dark,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFFFF664F),
-        brightness: Brightness.dark,
-        primary: const Color(0xFFFF765F),
-        surface: const Color(0xFF16171B),
-      ),
-      scaffoldBackgroundColor: const Color(0xFF101114),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFF101114),
-        scrolledUnderElevation: 0,
-        centerTitle: false,
-      ),
-      navigationBarTheme: const NavigationBarThemeData(
-        backgroundColor: Color(0xFF18191E),
-        elevation: 0,
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: const Color(0xFF23252D),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide.none,
         ),
-      ),
-    ),
+      );
+    },
     home: store != null
-        ? AnimatedBuilder(
-            animation: store!,
-            builder: (_, _) => store!.locked
-                ? ProfilesScreen(store: store!, locked: true)
-                : HomeScreen(
-                    key: ValueKey(
-                      'profile-${store!.profile.id}-${store!.profileEpoch}',
-                    ),
-                    repository: repository,
-                    store: store!,
+        ? store!.locked
+              ? ProfilesScreen(store: store!, locked: true)
+              : HomeScreen(
+                  key: ValueKey(
+                    'profile-${store!.profile.id}-${store!.profileEpoch}',
                   ),
-          )
+                  repository: repository,
+                  store: store!,
+                )
         : Scaffold(
             body: Center(
               child: Padding(

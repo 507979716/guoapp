@@ -1,8 +1,4 @@
 <resources>
-    <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
-        <item name="android:windowBackground">#101114</item>
-    </style>
-    <style name="NormalTheme" parent="@android:style/Theme.Black.NoTitleBar">
-        <item name="android:windowBackground">#101114</item>
-    </style>
+    <style name="LaunchTheme" parent="AppSystemBarTheme" />
+    <style name="NormalTheme" parent="AppSystemBarTheme" />
 </resources>

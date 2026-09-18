@@ -113,19 +113,23 @@ class _DownloadPickerState extends State<DownloadPicker> {
                     ],
                   ),
                 ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 18),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
                   child: Text(
                     '保存源站原始视频；指定画质不可用时使用可用版本。下载时请保持应用运行。',
-                    style: TextStyle(color: Color(0xFFABA8B4)),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
                 if (hasVip)
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(18, 8, 18, 0),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
                     child: Text(
                       '已选 VIP 集可能只能下载试看内容。',
-                      style: TextStyle(color: Color(0xFFF6C86B)),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.tertiary,
+                      ),
                     ),
                   ),
                 Expanded(

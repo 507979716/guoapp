@@ -8,6 +8,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app_layout.dart';
+import 'app_theme.dart';
 import 'core_bridge.dart';
 import 'local_store.dart';
 import 'models.dart';
@@ -533,7 +534,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _player.seek(target);
   }
 
-  Future<void> _televisionEpisodes() async {
+  Future<void> _televisionEpisodes(BuildContext context) async {
     final index = await showDialog<int>(
       context: context,
       builder: (_) => TelevisionEpisodeDialog(
@@ -546,7 +547,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
-  Future<void> _televisionSettings() async {
+  Future<void> _televisionSettings(BuildContext context) async {
     final selection = await showDialog<TelevisionPlaybackSetting>(
       context: context,
       builder: (_) => TelevisionSettingsDialog(
@@ -606,7 +607,15 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Theme(
+    data: _television ? televisionTheme(AppTheme.dark) : AppTheme.dark,
+    child: AnnotatedRegion<SystemUiOverlayStyle>(
+      value: AppTheme.systemBars(Brightness.dark),
+      child: Builder(builder: _buildPlayer),
+    ),
+  );
+
+  Widget _buildPlayer(BuildContext context) {
     final title = widget.detail.drama.title;
     final episode = widget.detail.episodes[_index];
     final fullscreen = _showFullscreen;
@@ -663,7 +672,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                 builder: (context, constraints) {
                   final desktop = constraints.maxWidth >= 840;
                   if (fullscreen) {
-                    return _videoPane();
+                    return _videoPane(context);
                   }
                   if (desktop ||
                       constraints.maxWidth > constraints.maxHeight * 1.3) {
@@ -672,7 +681,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                         Expanded(
                           child: Column(
                             children: [
-                              Expanded(child: _videoPane()),
+                              Expanded(child: _videoPane(context)),
                               _actionBar(episode),
                             ],
                           ),
@@ -693,7 +702,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                       SizedBox(
                         height: height,
                         width: double.infinity,
-                        child: _videoPane(),
+                        child: _videoPane(context),
                       ),
                       _actionBar(episode),
                       Expanded(child: _episodePanel()),
@@ -708,7 +717,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     );
   }
 
-  Widget _videoPane() {
+  Widget _videoPane(BuildContext context) {
     final title =
         '${widget.detail.drama.title} · 第 ${widget.detail.episodes[_index].number} 集${_plan?.local == true ? ' · 本地' : ''}${widget.detail.episodes[_index].vip ? ' · VIP 试看' : ''}${(_plan?.routeIndex ?? 0) > 0 ? ' · 线路 ${_plan!.routeIndex + 1}' : ''}';
     final Widget controls = _television
@@ -722,8 +731,8 @@ class _PlayerScreenState extends State<PlayerScreen>
             onNext: _index + 1 < widget.detail.episodes.length
                 ? () => _play(_index + 1)
                 : null,
-            onEpisodes: _televisionEpisodes,
-            onSettings: _televisionSettings,
+            onEpisodes: () => _televisionEpisodes(context),
+            onSettings: () => _televisionSettings(context),
             onBack: _back,
           )
         : PlayerControls(

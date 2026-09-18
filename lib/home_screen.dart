@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'app_layout.dart';
+import 'app_bottom_navigation.dart';
 import 'core_bridge.dart';
 import 'detail_screen.dart';
 import 'downloads_screen.dart';
@@ -377,7 +378,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ),
-                  const VerticalDivider(width: 1, color: Color(0xFF26282E)),
+                  const VerticalDivider(width: 1),
                 ] else if (desktop) ...[
                   NavigationRail(
                     selectedIndex: _tab,
@@ -385,7 +386,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       _tab = value;
                     }),
                     labelType: NavigationRailLabelType.all,
-                    backgroundColor: const Color(0xFF101114),
                     groupAlignment: -.8,
                     destinations: [
                       NavigationRailDestination(
@@ -410,11 +410,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                     ],
                   ),
-                  const VerticalDivider(
-                    width: 1,
-                    thickness: 1,
-                    color: Color(0xFF26282E),
-                  ),
+                  const VerticalDivider(width: 1, thickness: 1),
                 ],
                 Expanded(
                   child: _tab == 0
@@ -437,7 +433,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           bottomNavigationBar: desktop || television
               ? null
-              : NavigationBar(
+              : AppBottomNavigation(
                   selectedIndex: _tab,
                   onDestinationSelected: (value) => setState(() {
                     _tab = value;
@@ -567,7 +563,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ? '搜索结果 · ${items.length} 部'
                       : '${_source.description} · ${items.length} 部',
                   style: TextStyle(
-                    color: Color(0xFFB3B1BA),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontSize: television ? 14 : 12,
                   ),
                 ),
@@ -596,7 +592,7 @@ class _HomeScreenState extends State<HomeScreen> {
             margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
             decoration: BoxDecoration(
-              color: const Color(0xFF322521),
+              color: Theme.of(context).colorScheme.errorContainer,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -606,7 +602,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     _error!,
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onErrorContainer,
+                    ),
                   ),
                 ),
                 TextButton(
@@ -718,10 +717,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                         ),
                                         label: const Text('加载更多'),
                                       )
-                                    : const Text(
+                                    : Text(
                                         '已经看到这里的全部剧集',
                                         style: TextStyle(
-                                          color: Color(0xFF777780),
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurfaceVariant,
                                           fontSize: 12,
                                         ),
                                       ),
@@ -761,8 +762,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 8),
                     Text(
                       _tab == 1 ? '收藏喜欢的剧，随时接着看' : '点击剧集，继续上次的进度',
-                      style: const TextStyle(
-                        color: Color(0xFF9999A3),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 13,
                       ),
                     ),

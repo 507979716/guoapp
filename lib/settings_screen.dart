@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'core_bridge.dart';
+import 'app_theme.dart';
 import 'background_downloads.dart';
 import 'local_store.dart';
 import 'profiles_screen.dart';
@@ -35,6 +36,35 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _busy = false;
   String? _message;
+
+  Future<void> _chooseTheme() async {
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('外观主题'),
+        children: [
+          RadioGroup<String>(
+            groupValue: widget.store.themeMode,
+            onChanged: (value) => Navigator.pop(context, value),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final mode in ['light', 'dark', 'system'])
+                  RadioListTile<String>(
+                    value: mode,
+                    title: Text(AppTheme.label(mode)),
+                    subtitle: mode == 'system'
+                        ? const Text('随设备的深色模式自动切换')
+                        : null,
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+    if (selected != null) await widget.store.setThemeMode(selected);
+  }
 
   Future<void> _backup(bool restore) async {
     setState(() {
@@ -105,6 +135,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              ListTile(
+                key: const ValueKey('theme-setting'),
+                leading: const Icon(Icons.palette_outlined),
+                title: const Text('外观主题'),
+                subtitle: Text(AppTheme.label(widget.store.themeMode)),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: _chooseTheme,
+              ),
               ListTile(
                 leading: const Icon(Icons.people_outline),
                 title: const Text('用户管理'),

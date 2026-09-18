@@ -75,16 +75,16 @@ class _RemoteTargetState extends State<RemoteTarget> {
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
               color: _focused
-                  ? const Color(0xFF523128)
+                  ? Theme.of(context).colorScheme.primaryContainer
                   : widget.selected
-                  ? const Color(0xFF33251F)
+                  ? Theme.of(context).colorScheme.primaryContainer
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: _focused
-                    ? const Color(0xFFFFAE93)
+                    ? Theme.of(context).colorScheme.primary
                     : widget.selected
-                    ? const Color(0xFF9B5342)
+                    ? Theme.of(context).colorScheme.primary
                     : Colors.transparent,
                 width: 3,
               ),
@@ -131,7 +131,9 @@ class RemoteButton extends StatelessWidget {
             label,
             style: TextStyle(
               fontSize: 17,
-              color: onPressed == null ? Colors.white38 : Colors.white,
+              color: onPressed == null
+                  ? Theme.of(context).disabledColor
+                  : Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ],
@@ -356,9 +358,9 @@ class RemoteEpisodeButton extends StatelessWidget {
           Text('$number', style: const TextStyle(fontSize: 20)),
           if (vip) ...[
             const SizedBox(width: 4),
-            const Icon(
+            Icon(
               Icons.workspace_premium_rounded,
-              color: Color(0xFFF6C86B),
+              color: Theme.of(context).colorScheme.tertiary,
               size: 18,
             ),
           ],

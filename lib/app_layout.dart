@@ -3,17 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 const appName = '真果鉴';
-const appVersion = '0.2.0';
+const appVersion = '0.2.1';
 
 ThemeData televisionTheme(ThemeData theme) {
+  final colors = theme.colorScheme;
   final focusSide = WidgetStateProperty.resolveWith<BorderSide?>(
     (states) => states.contains(WidgetState.focused)
-        ? const BorderSide(color: Color(0xFFFFAE93), width: 3)
+        ? BorderSide(color: colors.primary, width: 3)
         : null,
   );
   final focusBackground = WidgetStateProperty.resolveWith<Color?>(
     (states) =>
-        states.contains(WidgetState.focused) ? const Color(0xFF523128) : null,
+        states.contains(WidgetState.focused) ? colors.primaryContainer : null,
   );
   final button = ButtonStyle(
     side: focusSide,
@@ -21,7 +22,7 @@ ThemeData televisionTheme(ThemeData theme) {
     textStyle: const WidgetStatePropertyAll(TextStyle(fontSize: 17)),
   );
   return theme.copyWith(
-    focusColor: const Color(0xFF754838),
+    focusColor: colors.primaryContainer,
     iconButtonTheme: IconButtonThemeData(
       style: button.copyWith(backgroundColor: focusBackground),
     ),
@@ -33,7 +34,7 @@ ThemeData televisionTheme(ThemeData theme) {
     inputDecorationTheme: theme.inputDecorationTheme.copyWith(
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: Color(0xFFFFAE93), width: 3),
+        borderSide: BorderSide(color: colors.primary, width: 3),
       ),
     ),
   );

@@ -237,7 +237,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
             '${quality > 0 ? ' · ${quality}P' : ''}${job.episode.vip ? ' · VIP 试看' : ''}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Color(0xFFABA8B4)),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 8),
           if (!job.completed) ...[
@@ -251,7 +253,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           Text(
             '${_size(job.bytes)}${job.total > 0 ? ' / ${_size(job.total)}' : ''}'
             '${!job.completed && job.progress > 0 ? ' · ${(job.progress * 100).floor()}%' : ''}',
-            style: const TextStyle(color: Color(0xFFABA8B4)),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           if (job.error.isNotEmpty)
             Padding(
@@ -260,7 +264,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                 job.error,
                 maxLines: television ? 1 : 3,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Color(0xFFFFAE93)),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ),
           if (!television)
@@ -387,7 +391,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
             Platform.isAndroid
                 ? '支持后台下载，可在通知中查看进度和暂停。已下载视频可断网播放。'
                 : '下载时请保持应用运行，重开后可继续。已下载视频可断网播放。',
-            style: TextStyle(color: Color(0xFFABA8B4)),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
         if (_error != null && _jobs.isNotEmpty)

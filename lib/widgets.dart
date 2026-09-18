@@ -21,19 +21,20 @@ class DramaCover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final placeholder = Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF35313E), Color(0xFF252734)],
+          colors: [colors.surfaceContainerHighest, colors.surfaceContainer],
         ),
       ),
       child: Center(
         child: Icon(
           Icons.movie_creation_outlined,
           size: 40,
-          color: Colors.white.withValues(alpha: .3),
+          color: colors.onSurfaceVariant,
         ),
       ),
     );
@@ -153,7 +154,10 @@ class _CachedCoverImageState extends State<CachedCoverImage> {
     child: IconButton(
       tooltip: '重试海报',
       onPressed: () => _retry(path),
-      icon: const Icon(Icons.refresh_rounded, color: Color(0xFFABA8B4)),
+      icon: Icon(
+        Icons.refresh_rounded,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
     ),
   );
 
@@ -227,7 +231,7 @@ class DramaTile extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: television ? 14 : 12,
-              color: Colors.white.withValues(alpha: .45),
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ),
@@ -289,7 +293,9 @@ class StatusPanel extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white.withValues(alpha: .6)),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
           if (onRetry != null) ...[
