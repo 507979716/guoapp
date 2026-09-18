@@ -301,7 +301,7 @@ git switch -c restore-v0.2.1 v0.2.1
 
 本轮通过 Dart 静态检查、52 项 Flutter 回归和 13 项构建镜像 / 同步 / 版本快照测试。新增覆盖主题持久化、备份兼容、打开页面即时换色、保持导航位置、跟随系统、三 / 四项导航大字布局及键盘操作、播放器深色主题和返回后的系统栏恢复。
 
-Android ARM64 合成数据调试包已构建成功；正式安装包仍为 `dist/android/zhenguojian-0.2.0+6-{arm64-v8a,armeabi-v7a,x86_64}.apk`，本轮 `0.2.1+7` 正式 APK 尚未重打。调试包用于自动化验收，不作为正式安装包交付。
+已生成正式安装包 `dist/android/zhenguojian-0.2.1+7-{arm64-v8a,armeabi-v7a,x86_64}.apk`，普通 Android 手机使用 `arm64-v8a`。本次补交安装包仅执行正式构建与打包，按用户要求未追加测试或设备验收。
 
 本轮手机调试连接断开，尚未完成真实系统虚拟按键区域的视觉验收，未启动模拟器。Windows 完整包运行验收需 Windows / Actions；本机缺少 iPhoneOS SDK，iOS 尚未完成 Xcode 构建和真机验收，也未执行远程 Actions。
 
