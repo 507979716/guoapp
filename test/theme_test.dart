@@ -35,7 +35,7 @@ void main() {
     'theme survives restart and backup, with compatible old backups',
     () async {
       final store = await localStore();
-      expect(store.themeMode, 'dark');
+      expect(store.themeMode, 'system');
       await store.setThemeMode('light');
       final restored = LocalStore(store.preferences);
       expect(restored.themeMode, 'light');
@@ -56,6 +56,42 @@ void main() {
       expect(store.themeMode, 'system');
       store.dispose();
       restored.dispose();
+    },
+  );
+
+  testWidgets(
+    'default theme follows the system from bootstrap through browsing',
+    (tester) async {
+      phone(tester);
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+      final repository = FixtureRepository();
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+      await tester.pumpWidget(DuanjuApp(repository: repository));
+      await tester.pump();
+      expect(
+        tester.widget<MaterialApp>(find.byType(MaterialApp)).themeMode,
+        ThemeMode.system,
+      );
+      final store = await localStore();
+      await tester.pumpWidget(DuanjuApp(repository: repository, store: store));
+      await tester.pumpAndSettle();
+      for (final brightness in [Brightness.dark, Brightness.light]) {
+        tester.platformDispatcher.platformBrightnessTestValue = brightness;
+        await tester.pumpAndSettle();
+        expect(
+          Theme.of(tester.element(find.byType(HomeScreen))).brightness,
+          brightness,
+        );
+      }
+      await store.setThemeMode('dark');
+      await tester.pumpAndSettle();
+      expect(
+        Theme.of(tester.element(find.byType(HomeScreen))).brightness,
+        Brightness.dark,
+      );
+      expect(LocalStore(store.preferences).themeMode, 'dark');
+      await tester.pumpWidget(const SizedBox.shrink());
+      store.dispose();
     },
   );
 

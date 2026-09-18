@@ -55,7 +55,7 @@ void main() {
     await tester.pumpWidget(DuanjuApp(repository: repository, store: store));
     await tester.pumpAndSettle();
     await binding.convertFlutterSurfaceToImage();
-    await capture('appearance-dark-home');
+    await capture('appearance-system-home');
     await tester.tap(find.byKey(const ValueKey('bottom-nav-1')));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('更多'));

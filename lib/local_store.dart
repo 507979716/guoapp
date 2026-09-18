@@ -77,7 +77,7 @@ class LocalStore extends ChangeNotifier {
   String get displayMode => preferences.getString('displayMode') ?? 'auto';
   String get themeMode {
     final saved = preferences.getString('themeMode');
-    return {'light', 'dark', 'system'}.contains(saved) ? saved! : 'dark';
+    return {'light', 'dark', 'system'}.contains(saved) ? saved! : 'system';
   }
 
   bool get autoExport => preferences.getBool('autoExport') ?? false;

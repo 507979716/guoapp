@@ -251,10 +251,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  bool get _supportsVipFilter => _source.id == 'huangdou';
+  bool get _hideVip => _supportsVipFilter && widget.store.hideVip;
+
   List<Drama> get _visible {
     final query = _search.text.trim().toLowerCase();
     return _items.where((drama) {
-      if (widget.store.hideVip && drama.vip) {
+      if (_hideVip && drama.vip) {
         return false;
       }
       return _source.onlineSearch ||
@@ -290,10 +293,13 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             actions: [
               if (_tab == 0)
-                IconButton(
+                RefreshAction(
+                  key: const ValueKey('catalog-refresh'),
+                  loading: _loading || _loadingMore,
                   tooltip: '更新当前站源',
-                  onPressed: _loading ? null : () => _load(force: true),
-                  icon: const Icon(Icons.refresh_rounded),
+                  onPressed: widget.store.sources.isEmpty
+                      ? null
+                      : () => _load(force: true),
                 ),
               PopupMenuButton<String>(
                 tooltip: '更多',
@@ -568,20 +574,21 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-              Tooltip(
-                message: widget.store.hideVip ? '当前隐藏 VIP 内容' : '当前显示 VIP 内容',
-                child: TextButton.icon(
-                  onPressed: () =>
-                      widget.store.setHideVip(!widget.store.hideVip),
-                  icon: Icon(
-                    widget.store.hideVip
-                        ? Icons.visibility_off_outlined
-                        : Icons.visibility_outlined,
-                    size: 17,
+              if (_supportsVipFilter)
+                Tooltip(
+                  message: widget.store.hideVip ? '当前隐藏 VIP 内容' : '当前显示 VIP 内容',
+                  child: TextButton.icon(
+                    onPressed: () =>
+                        widget.store.setHideVip(!widget.store.hideVip),
+                    icon: Icon(
+                      widget.store.hideVip
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      size: 17,
+                    ),
+                    label: Text(widget.store.hideVip ? 'VIP：隐藏' : 'VIP：显示'),
                   ),
-                  label: Text(widget.store.hideVip ? 'VIP：隐藏' : 'VIP：显示'),
                 ),
-              ),
             ],
           ),
         ),
@@ -639,7 +646,7 @@ class _HomeScreenState extends State<HomeScreen> {
               : items.isEmpty
               ? StatusPanel(
                   title: '没有找到匹配的短剧',
-                  message: widget.store.hideVip
+                  message: _hideVip
                       ? '可以换个搜索词、切换站源，或显示 VIP 内容。'
                       : '可以换个搜索词或切换站源。',
                   onRetry:
@@ -690,6 +697,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             sliver: SliverGrid(
                               gridDelegate: dramaGridDelegate(
+                                context,
                                 constraints.maxWidth - 2 * padding,
                               ),
                               delegate: SliverChildBuilderDelegate(
@@ -810,33 +818,37 @@ class _HomeScreenState extends State<HomeScreen> {
                       : Icons.history_rounded,
                 )
               : LayoutBuilder(
-                  builder: (context, constraints) =>
-                      AppLayout.isTelevision(context)
-                      ? _televisionGrid(
-                          items,
-                          constraints.maxWidth,
-                          key: 'saved-$_tab',
-                          saved: true,
-                        )
-                      : GridView.builder(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                          gridDelegate: dramaGridDelegate(
-                            constraints.maxWidth - 40,
-                          ),
-                          itemCount: items.length,
-                          itemBuilder: (_, index) {
-                            final drama = items[index];
-                            final entry = widget.store.watched(drama.id);
-                            return DramaTile(
-                              drama: drama,
-                              repository: widget.repository,
-                              onTap: () => _openDrama(drama),
-                              subtitle: entry == null
-                                  ? SourceSite.byId(drama.source).name
-                                  : '看到第 ${entry.episode} 集 · ${formatPosition(entry.position)}',
-                            );
-                          },
-                        ),
+                  builder: (context, constraints) {
+                    if (AppLayout.isTelevision(context)) {
+                      return _televisionGrid(
+                        items,
+                        constraints.maxWidth,
+                        key: 'saved-$_tab',
+                        saved: true,
+                      );
+                    }
+                    final padding = constraints.maxWidth < 600 ? 16.0 : 24.0;
+                    return GridView.builder(
+                      padding: EdgeInsets.fromLTRB(padding, 0, padding, 20),
+                      gridDelegate: dramaGridDelegate(
+                        context,
+                        constraints.maxWidth - 2 * padding,
+                      ),
+                      itemCount: items.length,
+                      itemBuilder: (_, index) {
+                        final drama = items[index];
+                        final entry = widget.store.watched(drama.id);
+                        return DramaTile(
+                          drama: drama,
+                          repository: widget.repository,
+                          onTap: () => _openDrama(drama),
+                          subtitle: entry == null
+                              ? SourceSite.byId(drama.source).name
+                              : '看到第 ${entry.episode} 集 · ${formatPosition(entry.position)}',
+                        );
+                      },
+                    );
+                  },
                 ),
         ),
       ],
@@ -857,7 +869,7 @@ class _HomeScreenState extends State<HomeScreen> {
       key: ValueKey('tv-grid-$key'),
       itemKeys: items.map((item) => item.id).toList(),
       columns: columns,
-      itemExtent: tileWidth * 1.5 + 84,
+      itemExtent: DramaTile.extentFor(context, tileWidth - 14) + 14,
       controller: controller,
       footer: footer,
       padding: const EdgeInsets.fromLTRB(18, 2, 18, 18),

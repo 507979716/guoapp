@@ -7,14 +7,14 @@ abstract final class AppTheme {
 
   static ThemeMode mode(String preference) => switch (preference) {
     'light' => ThemeMode.light,
-    'system' => ThemeMode.system,
-    _ => ThemeMode.dark,
+    'dark' => ThemeMode.dark,
+    _ => ThemeMode.system,
   };
 
   static String label(String preference) => switch (preference) {
     'light' => '浅色',
-    'system' => '跟随系统',
-    _ => '深色',
+    'dark' => '深色',
+    _ => '跟随系统',
   };
 
   static SystemUiOverlayStyle systemBars(Brightness brightness) {

@@ -218,10 +218,10 @@ class _DetailScreenState extends State<DetailScreen> {
                 onPressed: _loading || episodes.isEmpty ? null : _download,
                 icon: const Icon(Icons.download_rounded),
               ),
-            IconButton(
+            RefreshAction(
+              loading: _loading,
               tooltip: '更新剧集信息',
-              onPressed: _loading ? null : _load,
-              icon: const Icon(Icons.refresh_rounded),
+              onPressed: _load,
             ),
             IconButton(
               tooltip: widget.store.isFavorite(drama.id) ? '取消追剧' : '加入追剧',

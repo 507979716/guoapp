@@ -25,6 +25,9 @@ void main() {
       final local = await store();
       await tester.pumpWidget(DuanjuApp(repository: repository, store: local));
       await tester.pumpAndSettle();
+      expect(find.text('VIP：隐藏'), findsNothing);
+      await tester.tap(find.text('黄豆'));
+      await tester.pumpAndSettle();
       expect(find.text('测试短剧'), findsOneWidget);
       expect(find.text('会员测试剧'), findsNothing);
       expect(find.text('VIP：隐藏'), findsOneWidget);

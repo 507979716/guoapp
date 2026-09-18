@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 const appName = '真果鉴';
-const appVersion = '0.2.1';
+const appVersion = '0.2.2';
 
 ThemeData televisionTheme(ThemeData theme) {
   final colors = theme.colorScheme;

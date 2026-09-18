@@ -320,6 +320,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   @override
   Widget build(BuildContext context) {
     final television = AppLayout.isTelevision(context);
+    final colors = Theme.of(context).colorScheme;
+    final activeCount = _jobs.where((job) => job.active).length;
     final visible = _jobs
         .where(
           (job) =>
@@ -331,43 +333,22 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: Wrap(
-            spacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
+          padding: const EdgeInsets.fromLTRB(18, 8, 8, 0),
+          child: Row(
             children: [
-              for (final filter in const {
-                'all': '全部',
-                'pending': '未完成',
-                'completed': '已下载',
-              }.entries)
-                if (television)
-                  RemoteButton(
-                    label: filter.value,
-                    selected: _filter == filter.key,
-                    onPressed: () => setState(() => _filter = filter.key),
-                  )
-                else
-                  ChoiceChip(
-                    label: Text(filter.value),
-                    selected: _filter == filter.key,
-                    onSelected: (_) => setState(() => _filter = filter.key),
-                  ),
-              TextButton.icon(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (_) => LocalMediaScreen(
-                      repository: widget.repository,
-                      store: widget.store,
-                    ),
-                  ),
+              Expanded(
+                child: Text(
+                  '下载任务',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
-                icon: const Icon(Icons.video_library_outlined),
-                label: const Text('本地媒体'),
               ),
               PopupMenuButton<String>(
+                key: const ValueKey('download-queue-actions'),
                 tooltip: '队列操作',
+                icon: const Icon(Icons.more_horiz_rounded),
+                enabled: _busy.isEmpty,
                 onSelected: (command) => _control(command),
                 itemBuilder: (_) => [
                   PopupMenuItem(
@@ -386,13 +367,78 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           ),
         ),
         Padding(
+          padding: const EdgeInsets.fromLTRB(18, 0, 12, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _loading
+                      ? '正在读取任务'
+                      : '共 ${_jobs.length} 项${activeCount > 0 ? ' · $activeCount 项进行中' : ''}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: colors.onSurfaceVariant),
+                ),
+              ),
+              const SizedBox(width: 8),
+              TextButton.icon(
+                key: const ValueKey('download-local-media'),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => LocalMediaScreen(
+                      repository: widget.repository,
+                      store: widget.store,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.video_library_outlined),
+                label: const Text('本地媒体'),
+              ),
+            ],
+          ),
+        ),
+        SingleChildScrollView(
+          key: const ValueKey('download-filters'),
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              for (final filter in const {
+                'all': '全部',
+                'pending': '未完成',
+                'completed': '已下载',
+              }.entries)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: television
+                      ? RemoteButton(
+                          key: ValueKey('download-filter-${filter.key}'),
+                          label: filter.value,
+                          selected: _filter == filter.key,
+                          onPressed: () => setState(() => _filter = filter.key),
+                        )
+                      : ChoiceChip(
+                          key: ValueKey('download-filter-${filter.key}'),
+                          label: Text(filter.value),
+                          selected: _filter == filter.key,
+                          showCheckmark: false,
+                          onSelected: (_) =>
+                              setState(() => _filter = filter.key),
+                        ),
+                ),
+            ],
+          ),
+        ),
+        Padding(
           padding: const EdgeInsets.fromLTRB(18, 8, 18, 10),
           child: Text(
             Platform.isAndroid
                 ? '支持后台下载，可在通知中查看进度和暂停。已下载视频可断网播放。'
                 : '下载时请保持应用运行，重开后可继续。已下载视频可断网播放。',
             style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: television ? 14 : 12,
+              color: colors.onSurfaceVariant,
             ),
           ),
         ),
