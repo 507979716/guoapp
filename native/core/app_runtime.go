@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"crypto/tls"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -93,12 +92,14 @@ type nativeCatalogResult struct {
 }
 
 type nativePlan struct {
-	URL       string            `json:"url"`
-	Headers   map[string]string `json:"headers"`
-	Key       string            `json:"decryptionKey,omitempty"`
-	Quality   int               `json:"quality"`
-	Qualities []int             `json:"qualities"`
-	Session   string            `json:"session,omitempty"`
+	URL        string            `json:"url"`
+	Headers    map[string]string `json:"headers"`
+	Key        string            `json:"decryptionKey,omitempty"`
+	Quality    int               `json:"quality"`
+	Qualities  []int             `json:"qualities"`
+	Session    string            `json:"session,omitempty"`
+	RouteIndex int               `json:"routeIndex"`
+	RouteCount int               `json:"routeCount"`
 }
 
 type nativeEngine struct {
@@ -109,6 +110,7 @@ type nativeEngine struct {
 	catalogStates    map[string]nativeCatalogState
 	covers           *nativeCoverCache
 	stream           *nativeStreamServer
+	playbacks        map[string]nativePlaybackChoice
 	playbackMu       sync.Mutex
 	playbackSequence int64
 	playbackCancel   context.CancelFunc
@@ -229,7 +231,7 @@ func nativeDispatch(input nativeInput) (any, error) {
 			nativeState.engine = engine
 		}
 		nativeState.Unlock()
-		return map[string]any{"version": "0.1.1", "standalone": true}, nil
+		return map[string]any{"version": "0.1.2", "standalone": true}, nil
 	}
 	engine := nativeState.engine
 	nativeState.Unlock()
@@ -248,23 +250,21 @@ func nativeDispatch(input nativeInput) (any, error) {
 		return map[string]string{"path": path}, err
 	case "detail":
 		return engine.nativeDetail(ctx, input.Drama)
-	case "resolve":
+	case "resolve", "fallback":
 		playback, finish, err := engine.nativeBeginPlayback(ctx, input.Sequence)
 		if err != nil {
 			return nil, err
 		}
 		defer finish()
+		if input.Action == "fallback" {
+			return engine.nativeNextPlayback(playback, input.Session)
+		}
 		return engine.nativeResolve(playback, input)
 	case "cancelPlayback":
 		engine.nativeCancelPlayback(input.Sequence)
 		return true, nil
 	case "release":
-		engine.mu.Lock()
-		stream := engine.stream
-		engine.mu.Unlock()
-		if stream != nil {
-			stream.nativeRelease(input.Session)
-		}
+		engine.nativeReleasePlayback(input.Session)
 		return true, nil
 	default:
 		return nil, errors.New("不支持的应用操作")
@@ -416,46 +416,5 @@ func (engine *nativeEngine) nativeResolve(ctx context.Context, input nativeInput
 	if err != nil {
 		return nativePlan{}, err
 	}
-	choices := media.Variants
-	if input.Quality > 0 {
-		for _, variant := range choices {
-			if variant.Quality == input.Quality {
-				media = variant
-				break
-			}
-		}
-	}
-	plan := nativePlan{URL: media.URL, Headers: map[string]string{"User-Agent": userAgent, "Referer": media.Referer}, Quality: media.Quality, Qualities: []int{}}
-	for _, variant := range choices {
-		if variant.Quality > 0 {
-			plan.Qualities = append(plan.Qualities, variant.Quality)
-		}
-	}
-	if len(media.CENCKey) > 0 {
-		plan.Key = hex.EncodeToString(media.CENCKey)
-	}
-	if err := ctx.Err(); err != nil {
-		return nativePlan{}, err
-	}
-	parsed, parseErr := url.Parse(media.URL)
-	if parseErr != nil || !isProviderHTTPMediaURL(media.URL) {
-		return nativePlan{}, errors.New("站源未返回有效的播放地址")
-	}
-	if media.Playlist != "" || strings.HasSuffix(strings.ToLower(parsed.Path), ".m3u8") {
-		engine.mu.Lock()
-		if engine.stream == nil {
-			engine.stream, err = newNativeStreamServer(engine.downloader)
-		}
-		stream := engine.stream
-		engine.mu.Unlock()
-		if err != nil {
-			return nativePlan{}, err
-		}
-		plan.URL, plan.Session = stream.nativeOpen(media)
-		if err := ctx.Err(); err != nil {
-			stream.nativeRelease(plan.Session)
-			return nativePlan{}, err
-		}
-	}
-	return plan, nil
+	return engine.nativeOpenPlayback(ctx, nativePlaybackChoices(media, input.Quality))
 }

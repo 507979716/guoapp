@@ -62,6 +62,9 @@ class FixtureRepository implements AppRepository {
     int quality = 0,
   }) async => const PlaybackPlan(url: 'https://example.test/synthetic.mp4');
   @override
+  Future<PlaybackPlan> fallback(PlaybackPlan current) async =>
+      throw AppFailure('没有备用线路');
+  @override
   Future<void> cancelPlayback() async {}
   @override
   Future<void> release(String session) async {}

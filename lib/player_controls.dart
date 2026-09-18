@@ -14,6 +14,7 @@ class PlayerControls extends StatefulWidget {
     required this.onPrevious,
     required this.onNext,
     required this.title,
+    required this.onTogglePlayback,
     this.swipeEnabled = false,
   });
 
@@ -23,6 +24,7 @@ class PlayerControls extends StatefulWidget {
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
   final String title;
+  final VoidCallback onTogglePlayback;
   final bool swipeEnabled;
 
   @override
@@ -123,7 +125,7 @@ class _PlayerControlsState extends State<PlayerControls> {
         behavior: HitTestBehavior.opaque,
         onTap: _toggle,
         onDoubleTap: () {
-          widget.player.playOrPause();
+          widget.onTogglePlayback();
           _show();
         },
         onVerticalDragStart: widget.swipeEnabled
@@ -203,7 +205,7 @@ class _PlayerControlsState extends State<PlayerControls> {
                               tooltip: state.playing ? '暂停' : '播放',
                               iconSize: 38,
                               onPressed: () {
-                                widget.player.playOrPause();
+                                widget.onTogglePlayback();
                                 _show();
                               },
                               icon: Icon(

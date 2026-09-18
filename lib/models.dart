@@ -130,6 +130,8 @@ class PlaybackPlan {
     this.quality = 0,
     this.qualities = const [],
     this.session = '',
+    this.routeIndex = 0,
+    this.routeCount = 1,
   });
   final String url;
   final Map<String, String> headers;
@@ -137,6 +139,9 @@ class PlaybackPlan {
   final int quality;
   final List<int> qualities;
   final String session;
+  final int routeIndex;
+  final int routeCount;
+  bool get hasAlternative => session.isNotEmpty && routeIndex + 1 < routeCount;
   factory PlaybackPlan.fromJson(Map<String, dynamic> json) => PlaybackPlan(
     url: json['url'] as String? ?? '',
     headers: (json['headers'] as Map? ?? {}).map(
@@ -147,6 +152,10 @@ class PlaybackPlan {
     qualities: (json['qualities'] as List? ?? []).map(intValue).toSet().toList()
       ..sort((a, b) => b.compareTo(a)),
     session: json['session'] as String? ?? '',
+    routeIndex: intValue(json['routeIndex']),
+    routeCount: intValue(json['routeCount']) > 0
+        ? intValue(json['routeCount'])
+        : 1,
   );
 }
 

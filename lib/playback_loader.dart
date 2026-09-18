@@ -8,11 +8,13 @@ class PlaybackLoader {
   int _generation = 0;
   bool _closed = false;
 
-  Future<PlaybackPlan?> load(
-    Drama drama,
-    Episode episode, {
-    int quality = 0,
-  }) async {
+  Future<PlaybackPlan?> load(Drama drama, Episode episode, {int quality = 0}) =>
+      _load(() => repository.resolve(drama, episode, quality: quality));
+
+  Future<PlaybackPlan?> fallback(PlaybackPlan current) =>
+      _load(() => repository.fallback(current));
+
+  Future<PlaybackPlan?> _load(Future<PlaybackPlan> Function() resolve) async {
     if (_closed) {
       return null;
     }
@@ -22,7 +24,7 @@ class PlaybackLoader {
       if (_closed || generation != _generation) {
         return null;
       }
-      final plan = await repository.resolve(drama, episode, quality: quality);
+      final plan = await resolve();
       if (_closed || generation != _generation) {
         await repository.release(plan.session);
         return null;

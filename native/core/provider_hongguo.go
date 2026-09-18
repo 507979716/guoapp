@@ -230,12 +230,18 @@ func (d *Downloader) resolveHongguoWebMedia(ctx context.Context, seriesID, video
 		return providerMedia{}, fmt.Errorf("红果未返回所请求的剧集，可能仅允许网页试看；请在站点确认该集的访问权限")
 	}
 	info, _ := page["video_player_info"].(map[string]any)
-	mediaURL := mapString(info, "main_url")
-	if !isProviderHTTPMediaURL(mediaURL) {
+	addresses := hongguoMediaAddresses(info)
+	if len(addresses) == 0 {
 		return providerMedia{}, fmt.Errorf("红果该集未提供公开播放地址，可能需要登录或 App 授权；不会将试看集冒充该集下载")
 	}
 	duration, _ := strconv.ParseFloat(mapString(info, "duration"), 64)
-	return providerMedia{URL: mediaURL, Referer: d.providerBaseURL(sourceHongguo) + "/", Duration: time.Duration(duration * float64(time.Second))}, nil
+	media := providerMedia{URL: addresses[0], Referer: d.providerBaseURL(sourceHongguo) + "/", Duration: time.Duration(duration * float64(time.Second))}
+	for _, address := range addresses {
+		variant := media
+		variant.URL, variant.Variants = address, nil
+		media.Variants = append(media.Variants, variant)
+	}
+	return media, nil
 }
 
 func hongguoDramaFromAny(v any, category string) Drama {

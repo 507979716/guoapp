@@ -11,6 +11,7 @@ import 'core_bridge.dart';
 import 'local_store.dart';
 import 'models.dart';
 import 'playback_loader.dart';
+import 'playback_recovery.dart';
 import 'player_controls.dart';
 import 'widgets.dart';
 
@@ -22,12 +23,18 @@ class PlayerScreen extends StatefulWidget {
     required this.repository,
     required this.store,
     this.initialPosition = 0,
+    this.playerFactory,
+    this.videoBuilder,
   });
   final DramaDetail detail;
   final int initialIndex;
   final double initialPosition;
   final AppRepository repository;
   final LocalStore store;
+  @visibleForTesting
+  final Player Function()? playerFactory;
+  @visibleForTesting
+  final Widget Function(Widget controls)? videoBuilder;
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
 }
@@ -35,10 +42,14 @@ class PlayerScreen extends StatefulWidget {
 class _PlayerScreenState extends State<PlayerScreen>
     with WidgetsBindingObserver {
   late final Player _player;
-  late final VideoController _video;
+  late final VideoController? _video;
   late final PlaybackLoader _loader;
   final List<StreamSubscription<dynamic>> _subscriptions = [];
+  final _recovery = PlaybackRecovery();
+  final _health = PlaybackHealth();
   Timer? _saveTimer;
+  Timer? _healthTimer;
+  Timer? _errorTimer;
   Future<void> _operations = Future<void>.value();
   late int _index;
   int _openedIndex = -1;
@@ -49,6 +60,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _closed = false;
   bool _acceptErrors = false;
   bool _foreground = true;
+  bool _playIntent = true;
+  bool _pendingError = false;
+  String _loadingMessage = '正在准备播放';
   String? _error;
   PlaybackPlan? _plan;
   double _speed = 1;
@@ -57,6 +71,10 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _rotating = false;
   bool get _mobile => Platform.isAndroid || Platform.isIOS;
   String get _session => _plan?.session ?? '';
+  double get _currentPosition =>
+      _openedIndex == _index && _player.state.position.inMilliseconds > 0
+      ? _player.state.position.inMilliseconds / 1000
+      : _resumePosition;
 
   @override
   void initState() {
@@ -64,17 +82,18 @@ class _PlayerScreenState extends State<PlayerScreen>
     WidgetsBinding.instance.addObserver(this);
     _index = widget.initialIndex;
     _loader = PlaybackLoader(widget.repository);
-    _player = Player(
-      configuration: const PlayerConfiguration(bufferSize: 32 * 1024 * 1024),
-    );
-    _video = VideoController(_player);
+    _player =
+        widget.playerFactory?.call() ??
+        Player(
+          configuration: const PlayerConfiguration(
+            bufferSize: 32 * 1024 * 1024,
+          ),
+        );
+    _video = widget.videoBuilder == null ? VideoController(_player) : null;
     _subscriptions.add(
       _player.stream.error.listen((error) {
         if (!_closed && _acceptErrors && mounted && error.trim().isNotEmpty) {
-          setState(() {
-            _loading = false;
-            _error = '播放暂时中断，请重试；也可以换一集或降低清晰度。';
-          });
+          _queueRecovery();
         }
       }),
     );
@@ -83,9 +102,22 @@ class _PlayerScreenState extends State<PlayerScreen>
         if (completed &&
             !_loading &&
             !_closed &&
-            _error == null &&
-            _index + 1 < widget.detail.episodes.length) {
-          _play(_index + 1);
+            _acceptErrors &&
+            _error == null) {
+          final duration = _player.state.duration;
+          if (duration <= Duration.zero ||
+              _player.state.position < duration - const Duration(seconds: 2)) {
+            _queueRecovery();
+          } else if (_index + 1 < widget.detail.episodes.length) {
+            _play(_index + 1);
+          }
+        }
+      }),
+    );
+    _subscriptions.add(
+      _player.stream.position.listen((position) {
+        if (!_closed && _openedIndex == _index && position > Duration.zero) {
+          _resumePosition = position.inMilliseconds / 1000;
         }
       }),
     );
@@ -104,17 +136,110 @@ class _PlayerScreenState extends State<PlayerScreen>
       const Duration(seconds: 5),
       (_) => _saveProgress(),
     );
+    _healthTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!_closed &&
+          _acceptErrors &&
+          !_loading &&
+          _error == null &&
+          _health.stalled(
+            position: _player.state.position,
+            playing: _player.state.playing && _playIntent,
+            foreground: _foreground,
+            now: DateTime.now(),
+          )) {
+        unawaited(_recover());
+      }
+    });
     _play(_index, position: widget.initialPosition);
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
+    _health.reset();
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
+      _playIntent = false;
       _player.pause();
       _saveProgress();
     }
+    if (_foreground && _pendingError) {
+      _queueRecovery();
+    }
+  }
+
+  void _queueRecovery() {
+    if (_closed || !_acceptErrors || _error != null) {
+      return;
+    }
+    _pendingError = true;
+    if (!_foreground || (_errorTimer?.isActive ?? false)) {
+      return;
+    }
+    final ticket = _generation;
+    final position = _player.state.position;
+    _errorTimer = Timer(const Duration(milliseconds: 900), () {
+      if (_closed || ticket != _generation || !_foreground || !_acceptErrors) {
+        return;
+      }
+      _pendingError = false;
+      final state = _player.state;
+      if (state.playing &&
+          !state.buffering &&
+          (state.width ?? 0) > 0 &&
+          state.position > position + const Duration(milliseconds: 300)) {
+        return;
+      }
+      unawaited(_recover());
+    });
+  }
+
+  Future<void> _recover() async {
+    final current = _plan;
+    if (_closed ||
+        !_acceptErrors ||
+        !_foreground ||
+        current == null ||
+        _error != null) {
+      return;
+    }
+    _acceptErrors = false;
+    _errorTimer?.cancel();
+    _pendingError = false;
+    final position = _currentPosition;
+    final action = _recovery.next(current);
+    if (action == PlaybackRecoveryAction.stop) {
+      _resumePosition = position;
+      final ticket = _generation;
+      try {
+        await _serialize(() async {
+          if (_closed || ticket != _generation) {
+            return;
+          }
+          try {
+            await _saveProgress();
+            _openedIndex = -1;
+            await _player.stop();
+          } finally {
+            await widget.repository.release(current.session);
+          }
+        });
+      } catch (_) {}
+      if (mounted && !_closed && ticket == _generation) {
+        setState(() {
+          _loading = false;
+          _error = '自动恢复未成功，请检查网络后重试，也可换一集或选择其他清晰度。';
+        });
+      }
+      return;
+    }
+    await _play(_index, position: position, recoveryAction: action);
+  }
+
+  void _togglePlayback() {
+    _playIntent = !_player.state.playing;
+    _health.reset();
+    unawaited(_player.playOrPause());
   }
 
   Future<void> _saveProgress() async {
@@ -146,19 +271,38 @@ class _PlayerScreenState extends State<PlayerScreen>
     return next;
   }
 
-  Future<void> _play(int index, {double position = 0}) async {
+  Future<void> _play(
+    int index, {
+    double position = 0,
+    PlaybackRecoveryAction? recoveryAction,
+    bool playWhenReady = true,
+  }) async {
     if (_closed || index < 0 || index >= widget.detail.episodes.length) {
       return;
     }
     final ticket = ++_generation;
     _acceptErrors = false;
+    _pendingError = false;
+    _errorTimer?.cancel();
+    _health.reset();
+    if (recoveryAction == null) {
+      _recovery.reset();
+      _playIntent = playWhenReady;
+    }
     _resumePosition = position;
     setState(() {
       _index = index;
       _loading = true;
       _error = null;
+      _loadingMessage = switch (recoveryAction) {
+        PlaybackRecoveryAction.alternative => '正在切换备用线路',
+        PlaybackRecoveryAction.refresh => '正在重新获取播放地址',
+        _ => '正在准备播放',
+      };
     });
     PlaybackPlan? prepared;
+    PlaybackPlan? retained;
+    bool installed = false;
     try {
       await _serialize(() async {
         if (_closed || ticket != _generation) {
@@ -167,20 +311,24 @@ class _PlayerScreenState extends State<PlayerScreen>
         await _saveProgress();
         _openedIndex = -1;
         await _player.stop();
-        final previousSession = _session;
+        final previous = _plan;
         _plan = null;
-        if (previousSession.isNotEmpty) {
-          await widget.repository.release(previousSession);
+        if (recoveryAction == PlaybackRecoveryAction.alternative) {
+          retained = previous;
+        } else if (previous != null) {
+          await widget.repository.release(previous.session);
         }
       });
       if (_closed || ticket != _generation) {
         return;
       }
-      prepared = await _loader.load(
-        widget.detail.drama,
-        widget.detail.episodes[index],
-        quality: _requestedQuality,
-      );
+      prepared = retained != null
+          ? await _loader.fallback(retained!)
+          : await _loader.load(
+              widget.detail.drama,
+              widget.detail.episodes[index],
+              quality: _requestedQuality,
+            );
       if (prepared == null) {
         return;
       }
@@ -209,6 +357,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           await platform.setProperty('network-timeout', '20');
         }
         _plan = plan;
+        installed = true;
         _acceptErrors = true;
         await _player.open(
           Media(
@@ -218,12 +367,13 @@ class _PlayerScreenState extends State<PlayerScreen>
                 ? Duration(milliseconds: (position * 1000).round())
                 : null,
           ),
-          play: _foreground,
+          play: _foreground && _playIntent,
         );
         if (_closed || ticket != _generation) {
           return;
         }
         _openedIndex = index;
+        _health.reset();
         await _player.setRate(_speed);
         if (mounted && !_closed && ticket == _generation) {
           setState(() {
@@ -232,26 +382,41 @@ class _PlayerScreenState extends State<PlayerScreen>
         }
       });
     } catch (error) {
-      if (prepared != null) {
+      if (!_closed && mounted && ticket == _generation) {
+        if (prepared != null && identical(_plan, prepared)) {
+          _acceptErrors = true;
+          _queueRecovery();
+        } else {
+          if (prepared != null) {
+            await widget.repository.release(prepared.session);
+          }
+          if (mounted && !_closed && ticket == _generation) {
+            setState(() {
+              _loading = false;
+              _error = error is AppFailure ? error.message : '无法播放这一集，请重试或换一集。';
+            });
+          }
+        }
+      } else if (prepared != null && !installed) {
         await widget.repository.release(prepared.session);
       }
-      if (!_closed && mounted && ticket == _generation) {
-        setState(() {
-          _loading = false;
-          _error = error is AppFailure ? error.message : '无法播放这一集，请重试或换一集。';
-        });
+    } finally {
+      if (retained != null) {
+        await widget.repository.release(retained!.session);
       }
     }
   }
 
   Future<void> _retry({int? quality}) async {
-    final position = _openedIndex == _index
-        ? _player.state.position.inMilliseconds / 1000
-        : _resumePosition;
+    final position = _currentPosition;
     if (quality != null) {
       _requestedQuality = quality;
     }
-    await _play(_index, position: position);
+    await _play(
+      _index,
+      position: position,
+      playWhenReady: quality == null || _error != null || _player.state.playing,
+    );
   }
 
   bool get _showFullscreen =>
@@ -321,6 +486,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     _generation++;
     WidgetsBinding.instance.removeObserver(this);
     _saveTimer?.cancel();
+    _healthTimer?.cancel();
+    _errorTimer?.cancel();
     unawaited(_saveProgress());
     for (final subscription in _subscriptions) {
       subscription.cancel();
@@ -368,7 +535,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           const SingleActivator(LogicalKeyboardKey.arrowLeft): () => _seek(-10),
           const SingleActivator(LogicalKeyboardKey.arrowRight): () => _seek(10),
           const SingleActivator(LogicalKeyboardKey.space): () =>
-              _player.playOrPause(),
+              _togglePlayback(),
         },
         child: Focus(
           autofocus: true,
@@ -443,52 +610,59 @@ class _PlayerScreenState extends State<PlayerScreen>
     );
   }
 
-  Widget _videoPane() => Stack(
-    fit: StackFit.expand,
-    children: [
-      Video(
-        controller: _video,
-        fit: BoxFit.contain,
-        controls: (_) => PlayerControls(
-          player: _player,
-          fullscreen: _showFullscreen,
-          title:
-              '${widget.detail.drama.title} · 第 ${widget.detail.episodes[_index].number} 集${widget.detail.episodes[_index].vip ? ' · VIP 试看' : ''}',
-          swipeEnabled: _mobile,
-          onFullscreen: _rotate,
-          onPrevious: _index > 0 ? () => _play(_index - 1) : null,
-          onNext: _index + 1 < widget.detail.episodes.length
-              ? () => _play(_index + 1)
-              : null,
-        ),
-      ),
-      if (_loading)
-        ColoredBox(
-          color: Colors.black.withValues(alpha: .78),
-          child: const Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('正在准备播放'),
-              ],
+  Widget _videoPane() {
+    final controls = PlayerControls(
+      player: _player,
+      fullscreen: _showFullscreen,
+      title:
+          '${widget.detail.drama.title} · 第 ${widget.detail.episodes[_index].number} 集${widget.detail.episodes[_index].vip ? ' · VIP 试看' : ''}${(_plan?.routeIndex ?? 0) > 0 ? ' · 线路 ${_plan!.routeIndex + 1}' : ''}',
+      onTogglePlayback: _togglePlayback,
+      swipeEnabled: _mobile,
+      onFullscreen: _rotate,
+      onPrevious: _index > 0 ? () => _play(_index - 1) : null,
+      onNext: _index + 1 < widget.detail.episodes.length
+          ? () => _play(_index + 1)
+          : null,
+    );
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (widget.videoBuilder != null)
+          widget.videoBuilder!(controls)
+        else
+          Video(
+            controller: _video!,
+            fit: BoxFit.contain,
+            controls: (_) => controls,
+          ),
+        if (_loading)
+          ColoredBox(
+            color: Colors.black.withValues(alpha: .78),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(_loadingMessage),
+                ],
+              ),
             ),
           ),
-        ),
-      if (_error != null)
-        ColoredBox(
-          color: Colors.black.withValues(alpha: .9),
-          child: StatusPanel(
-            title: '暂时无法播放',
-            message: _error!,
-            onRetry: () => _retry(),
-            action: '重试播放',
-            icon: Icons.play_disabled_rounded,
+        if (_error != null)
+          ColoredBox(
+            color: Colors.black.withValues(alpha: .9),
+            child: StatusPanel(
+              title: '暂时无法播放',
+              message: _error!,
+              onRetry: () => _retry(),
+              action: '重试播放',
+              icon: Icons.play_disabled_rounded,
+            ),
           ),
-        ),
-    ],
-  );
+      ],
+    );
+  }
 
   Widget _actionBar(Episode episode) => Container(
     color: const Color(0xFF191A20),

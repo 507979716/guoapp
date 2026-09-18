@@ -67,6 +67,7 @@ abstract class AppRepository {
   Future<String> cover(Drama drama, {bool force = false});
   Future<DramaDetail> detail(Drama drama);
   Future<PlaybackPlan> resolve(Drama drama, Episode episode, {int quality = 0});
+  Future<PlaybackPlan> fallback(PlaybackPlan current);
   Future<void> cancelPlayback();
   Future<void> release(String session);
 }
@@ -152,6 +153,15 @@ class NativeRepository implements AppRepository {
       'sequence': ++_playbackSequence,
     }),
   );
+  @override
+  Future<PlaybackPlan> fallback(PlaybackPlan current) async =>
+      PlaybackPlan.fromJson(
+        await _call({
+          'action': 'fallback',
+          'session': current.session,
+          'sequence': ++_playbackSequence,
+        }),
+      );
   @override
   Future<void> cancelPlayback() async {
     await _call({'action': 'cancelPlayback', 'sequence': ++_playbackSequence});
