@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 
 import 'app_layout.dart';
 import 'core_bridge.dart';
+import 'download_picker.dart';
+import 'downloads_screen.dart';
 import 'local_store.dart';
 import 'models.dart';
 import 'player_screen.dart';
@@ -83,6 +85,47 @@ class _DetailScreenState extends State<DetailScreen> {
         _error = error.toString();
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _download() async {
+    final detail = _detail;
+    if (detail == null) return;
+    final selection = await Navigator.of(context).push<DownloadSelection>(
+      MaterialPageRoute(builder: (_) => DownloadPicker(detail: detail)),
+    );
+    if (selection == null || !mounted) return;
+    try {
+      final added = await widget.repository.enqueueDownloads(
+        detail,
+        selection.episodes,
+        quality: selection.quality,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(added == 0 ? '所选集数已在下载列表中' : '已加入 $added 集，已有任务自动跳过'),
+          action: SnackBarAction(
+            label: '查看',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => DownloadsScreen(
+                    repository: widget.repository,
+                    store: widget.store,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
     }
   }
 
@@ -169,6 +212,12 @@ class _DetailScreenState extends State<DetailScreen> {
           toolbarHeight: television ? 64 : null,
           title: Text(drama.title, overflow: TextOverflow.ellipsis),
           actions: [
+            if (widget.repository.supportsDownloads)
+              IconButton(
+                tooltip: '下载选集',
+                onPressed: _loading || episodes.isEmpty ? null : _download,
+                icon: const Icon(Icons.download_rounded),
+              ),
             IconButton(
               tooltip: '更新剧集信息',
               onPressed: _loading ? null : _load,

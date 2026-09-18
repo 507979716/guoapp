@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'app_layout.dart';
 import 'core_bridge.dart';
 import 'detail_screen.dart';
+import 'downloads_screen.dart';
 import 'local_store.dart';
 import 'models.dart';
 import 'remote_widgets.dart';
@@ -328,6 +329,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             (Icons.explore_rounded, '发现'),
                             (Icons.bookmark_rounded, '追剧'),
                             (Icons.history_rounded, '最近观看'),
+                            (Icons.download_rounded, '下载'),
                           ].indexed)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 14),
@@ -370,6 +372,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         icon: Icon(Icons.history_rounded),
                         label: Text('最近观看'),
                       ),
+                      NavigationRailDestination(
+                        icon: Icon(Icons.download_outlined),
+                        selectedIcon: Icon(Icons.download_rounded),
+                        label: Text('下载'),
+                      ),
                     ],
                   ),
                   const VerticalDivider(
@@ -378,7 +385,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     color: Color(0xFF26282E),
                   ),
                 ],
-                Expanded(child: _tab == 0 ? _catalog() : _saved()),
+                Expanded(
+                  child: _tab == 0
+                      ? _catalog()
+                      : _tab == 3
+                      ? DownloadsScreen(
+                          repository: widget.repository,
+                          store: widget.store,
+                          embedded: true,
+                        )
+                      : _saved(),
+                ),
               ],
             ),
           ),
@@ -403,6 +420,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     NavigationDestination(
                       icon: Icon(Icons.history_rounded),
                       label: '最近观看',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.download_outlined),
+                      selectedIcon: Icon(Icons.download_rounded),
+                      label: '下载',
                     ),
                   ],
                 ),

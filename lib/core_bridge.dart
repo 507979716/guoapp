@@ -49,13 +49,29 @@ String _nativeRequest(String body) {
 }
 
 class AppFailure implements Exception {
-  AppFailure(this.message);
+  AppFailure(this.message, {this.code = ''});
   final String message;
+  final String code;
   @override
   String toString() => message;
 }
 
 abstract class AppRepository {
+  bool get supportsDownloads => false;
+  Future<List<DownloadJob>> downloads() async => [];
+  Future<int> enqueueDownloads(
+    DramaDetail detail,
+    List<Episode> episodes, {
+    int quality = 0,
+  }) async => throw AppFailure('当前环境不支持下载');
+  Future<void> controlDownloads(String command, {String id = ''}) async {}
+  Future<PlaybackPlan?> localPlayback(Drama drama, Episode episode) async =>
+      null;
+  Future<PlaybackPlan> resolveOnline(
+    Drama drama,
+    Episode episode, {
+    int quality = 0,
+  }) => resolve(drama, episode, quality: quality);
   Future<void> initialize();
   Future<CatalogPage> catalog(
     String source, {
@@ -72,7 +88,7 @@ abstract class AppRepository {
   Future<void> release(String session);
 }
 
-class NativeRepository implements AppRepository {
+class NativeRepository extends AppRepository {
   int _playbackSequence = DateTime.now().microsecondsSinceEpoch;
 
   Future<Map<String, dynamic>> _call(Map<String, dynamic> input) async {
@@ -83,7 +99,10 @@ class NativeRepository implements AppRepository {
       ).timeout(const Duration(seconds: 70));
       final response = jsonDecode(encoded) as Map<String, dynamic>;
       if (response['ok'] != true) {
-        throw AppFailure(response['error'] as String? ?? '读取失败，请重试');
+        throw AppFailure(
+          response['error'] as String? ?? '读取失败，请重试',
+          code: response['code'] as String? ?? '',
+        );
       }
       final data = response['data'];
       return data is Map ? Map<String, dynamic>.from(data) : {};
@@ -166,6 +185,72 @@ class NativeRepository implements AppRepository {
   Future<void> cancelPlayback() async {
     await _call({'action': 'cancelPlayback', 'sequence': ++_playbackSequence});
   }
+
+  @override
+  bool get supportsDownloads => true;
+
+  @override
+  Future<List<DownloadJob>> downloads() async {
+    final result = await _call({'action': 'downloads'});
+    return (result['jobs'] as List? ?? [])
+        .whereType<Map>()
+        .map((value) => DownloadJob.fromJson(Map<String, dynamic>.from(value)))
+        .toList();
+  }
+
+  @override
+  Future<int> enqueueDownloads(
+    DramaDetail detail,
+    List<Episode> episodes, {
+    int quality = 0,
+  }) async {
+    final result = await _call({
+      'action': 'enqueueDownloads',
+      'drama': detail.drama.toJson(),
+      'quality': quality,
+      'entries': episodes
+          .map((episode) => {'chapter': episode.raw, 'index': episode.number})
+          .toList(),
+    });
+    return intValue(result['added']);
+  }
+
+  @override
+  Future<void> controlDownloads(String command, {String id = ''}) async {
+    await _call({
+      'action': 'controlDownloads',
+      'command': command,
+      'jobId': id,
+    });
+  }
+
+  @override
+  Future<PlaybackPlan?> localPlayback(Drama drama, Episode episode) async {
+    final result = await _call({
+      'action': 'localPlayback',
+      'drama': drama.toJson(),
+      'index': episode.number,
+    });
+    if ((result['url'] as String? ?? '').isEmpty) return null;
+    return PlaybackPlan.fromJson(result);
+  }
+
+  @override
+  Future<PlaybackPlan> resolveOnline(
+    Drama drama,
+    Episode episode, {
+    int quality = 0,
+  }) async => PlaybackPlan.fromJson(
+    await _call({
+      'action': 'resolve',
+      'drama': drama.toJson(),
+      'chapter': episode.raw,
+      'index': episode.number,
+      'quality': quality,
+      'force': true,
+      'sequence': ++_playbackSequence,
+    }),
+  );
 
   @override
   Future<void> release(String session) async {

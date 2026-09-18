@@ -1,7 +1,7 @@
 import 'package:duanju_app/core_bridge.dart';
 import 'package:duanju_app/models.dart';
 
-class FixtureRepository implements AppRepository {
+class FixtureRepository extends AppRepository {
   int detailCalls = 0;
   bool fail = false;
   final requests = <String>[];

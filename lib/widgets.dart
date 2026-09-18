@@ -262,12 +262,14 @@ class StatusPanel extends StatelessWidget {
     this.onRetry,
     this.icon = Icons.movie_filter_outlined,
     this.action = '重试',
+    this.secondaryAction,
   });
   final String title;
   final String message;
   final VoidCallback? onRetry;
   final IconData icon;
   final String action;
+  final Widget? secondaryAction;
   @override
   Widget build(BuildContext context) => Center(
     child: SingleChildScrollView(
@@ -298,6 +300,10 @@ class StatusPanel extends StatelessWidget {
               icon: const Icon(Icons.refresh_rounded),
               label: Text(action),
             ),
+          ],
+          if (secondaryAction != null) ...[
+            const SizedBox(height: 8),
+            secondaryAction!,
           ],
         ],
       ),

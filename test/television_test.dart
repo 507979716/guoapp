@@ -66,7 +66,7 @@ void main() {
       );
       messenger.setMockMethodCallHandler(AppDevice.channel, (call) async {
         expect(call.method, 'deviceInfo');
-        return {'television': true, 'version': '0.1.3'};
+        return {'television': true, 'version': appVersion};
       });
       final detected = await AppDevice.detect();
       expect(detected.television, isTrue);

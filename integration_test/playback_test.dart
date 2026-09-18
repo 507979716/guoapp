@@ -1,4 +1,8 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:duanju_app/core_bridge.dart';
+import 'package:duanju_app/downloads_screen.dart';
 import 'package:duanju_app/local_store.dart';
 import 'package:duanju_app/main.dart';
 import 'package:duanju_app/models.dart';
@@ -13,7 +17,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const fixtureBase = String.fromEnvironment('FIXTURE_BASE_URL');
 
-class DeviceFixtureRepository implements AppRepository {
+class DeviceFixtureRepository extends AppRepository {
   final native = NativeRepository();
   final resolved = <int>[];
   final released = <String>[];
@@ -65,6 +69,7 @@ class DeviceFixtureRepository implements AppRepository {
     if (episode.number == 3) {
       return PlaybackPlan(
         url: plan.url,
+        local: plan.local,
         headers: plan.headers,
         decryptionKey: '00112233445566778899aabbccddeeff',
         session: plan.session,
@@ -85,6 +90,55 @@ class DeviceFixtureRepository implements AppRepository {
   Future<void> release(String session) async {
     if (session.isNotEmpty) released.add(session);
     await native.release(session);
+  }
+}
+
+class DownloadFixtureRepository extends DeviceFixtureRepository {
+  final locallyOpened = <int>[];
+
+  @override
+  bool get supportsDownloads => true;
+  @override
+  Future<List<DownloadJob>> downloads() => native.downloads();
+  @override
+  Future<int> enqueueDownloads(
+    DramaDetail detail,
+    List<Episode> episodes, {
+    int quality = 0,
+  }) => native.enqueueDownloads(detail, episodes, quality: quality);
+  @override
+  Future<void> controlDownloads(String command, {String id = ''}) =>
+      native.controlDownloads(command, id: id);
+  @override
+  Future<PlaybackPlan?> localPlayback(Drama drama, Episode episode) async {
+    final plan = await native.localPlayback(drama, episode);
+    if (plan == null) return null;
+    locallyOpened.add(episode.number);
+    return episode.number == 3
+        ? PlaybackPlan(
+            url: plan.url,
+            local: plan.local,
+            decryptionKey: '00112233445566778899aabbccddeeff',
+          )
+        : plan;
+  }
+}
+
+Future<Map<String, dynamic>> fixtureControl(String action) async {
+  final client = HttpClient();
+  try {
+    final request = await client.openUrl(
+      action == 'status' ? 'GET' : 'POST',
+      Uri.parse('$fixtureBase/_test/$action'),
+    );
+    final response = await request.close();
+    if (response.statusCode != 200) {
+      throw StateError('Fixture control unavailable');
+    }
+    return jsonDecode(await utf8.decoder.bind(response).join())
+        as Map<String, dynamic>;
+  } finally {
+    client.close(force: true);
   }
 }
 
@@ -360,5 +414,182 @@ void main() {
       );
     },
     timeout: const Timeout(Duration(minutes: 3)),
+  );
+
+  testWidgets(
+    'native downloads play MP4, AES HLS and CENC with the source offline',
+    (tester) async {
+      expect(fixtureBase, startsWith('http://127.0.0.1:'));
+      expect(const bool.fromEnvironment('DISABLE_REMOTE_IMAGES'), isTrue);
+      MediaKit.ensureInitialized();
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+      ]);
+      final repository = DownloadFixtureRepository();
+      await repository.initialize();
+      final store = LocalStore(await SharedPreferences.getInstance());
+      final detail = await repository.detail(DeviceFixtureRepository.drama);
+      await fixtureControl('online');
+      for (final job in await repository.downloads()) {
+        if (job.drama.id == detail.drama.id) {
+          await repository.controlDownloads('remove', id: job.id);
+        }
+      }
+      final samples = <Map<String, Object?>>[];
+
+      Future<void> until(bool Function() ready, String step) async {
+        final timer = Stopwatch()..start();
+        while (!ready()) {
+          if (timer.elapsed > const Duration(seconds: 40)) {
+            fail('Timed out: $step');
+          }
+          await tester.pump(const Duration(milliseconds: 200));
+        }
+      }
+
+      Player player() =>
+          tester.widget<Video>(find.byType(Video)).controller.player;
+
+      try {
+        await tester.pumpWidget(
+          DuanjuApp(repository: repository, store: store),
+        );
+        await until(
+          () => find.text('设备播放验证').evaluate().isNotEmpty,
+          'download catalog',
+        );
+        await tester.tap(find.text('设备播放验证'));
+        await until(
+          () => find.byTooltip('下载选集').evaluate().isNotEmpty,
+          'download detail',
+        );
+        await tester.tap(find.byTooltip('下载选集'));
+        await until(
+          () => find
+              .byKey(const ValueKey('enqueue-downloads'))
+              .evaluate()
+              .isNotEmpty,
+          'episode picker',
+        );
+        await tester.tap(find.byKey(const ValueKey('enqueue-downloads')));
+        await until(
+          () => find.text('查看').evaluate().isNotEmpty,
+          'enqueue feedback',
+        );
+        final timer = Stopwatch()..start();
+        List<DownloadJob> jobs;
+        do {
+          jobs = await repository.downloads();
+          expect(
+            jobs.where((job) => job.state == 'failed'),
+            isEmpty,
+            reason: jobs.map((job) => job.error).join(', '),
+          );
+          if (timer.elapsed > const Duration(seconds: 40)) {
+            fail('download completion timed out');
+          }
+          await tester.pump(const Duration(milliseconds: 200));
+        } while (jobs.length != 3 || jobs.any((job) => !job.completed));
+        expect(await repository.enqueueDownloads(detail, detail.episodes), 0);
+        await fixtureControl('offline');
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData.dark(),
+            home: DownloadsScreen(repository: repository, store: store),
+          ),
+        );
+        await until(
+          () => find.text('本地播放').evaluate().isNotEmpty,
+          'local playback buttons',
+        );
+        final first = jobs.firstWhere((job) => job.episode.number == 1);
+        await tester.tap(find.byKey(ValueKey('local-play-${first.id}')));
+        await until(
+          () => find.byType(Video).evaluate().isNotEmpty,
+          'offline player',
+        );
+        await player().setVolume(0);
+        for (final number in [1, 2, 3]) {
+          if (number != 1) {
+            await tester.tap(find.byKey(ValueKey('play-episode-$number')));
+          }
+          await until(
+            () =>
+                repository.locallyOpened.isNotEmpty &&
+                repository.locallyOpened.last == number &&
+                (player().state.width ?? 0) > 0 &&
+                player().state.duration.inSeconds >= 18 &&
+                player().state.position.inMilliseconds > 500,
+            'offline decode $number',
+          );
+          expect(find.text('暂时无法播放'), findsNothing);
+          await player().seek(const Duration(seconds: 6));
+          await until(
+            () => player().state.position.inMilliseconds >= 6000,
+            'offline seek $number',
+          );
+          samples.add({
+            'episode': number,
+            'width': player().state.width,
+            'height': player().state.height,
+            'positionMs': player().state.position.inMilliseconds,
+            'durationMs': player().state.duration.inMilliseconds,
+          });
+        }
+        await binding.takeScreenshot('android-offline-playback');
+        await tester.tap(
+          find.byTooltip(
+            MaterialLocalizations.of(
+              tester.element(find.byType(Video)),
+            ).backButtonTooltip,
+          ),
+        );
+        await until(
+          () => find.text('本地播放').evaluate().isNotEmpty,
+          'return to downloads',
+        );
+        await binding.takeScreenshot('android-offline-downloads');
+        final status = await fixtureControl('status');
+        expect(
+          status['deniedRequests'],
+          0,
+          reason: 'offline playback contacted the source',
+        );
+        final plan = await repository.native.localPlayback(
+          detail.drama,
+          detail.episodes.first,
+        );
+        await File(plan!.url).delete();
+        await expectLater(
+          repository.native.localPlayback(detail.drama, detail.episodes.first),
+          throwsA(
+            isA<AppFailure>().having(
+              (error) => error.code,
+              'code',
+              'local_media',
+            ),
+          ),
+        );
+        binding.reportData ??= {};
+        binding.reportData!['offlineDownloads'] = {
+          'samples': samples,
+          'deniedRequests': status['deniedRequests'],
+          'completedCount': jobs.length,
+          'missingFileDetected': true,
+        };
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 400));
+        await fixtureControl('online');
+        for (final job in await repository.downloads()) {
+          if (job.drama.id == detail.drama.id) {
+            await repository.controlDownloads('remove', id: job.id);
+          }
+        }
+        store.dispose();
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 4)),
   );
 }

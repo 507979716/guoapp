@@ -8,8 +8,25 @@ class PlaybackLoader {
   int _generation = 0;
   bool _closed = false;
 
-  Future<PlaybackPlan?> load(Drama drama, Episode episode, {int quality = 0}) =>
-      _load(() => repository.resolve(drama, episode, quality: quality));
+  Future<PlaybackPlan?> load(
+    Drama drama,
+    Episode episode, {
+    int quality = 0,
+    bool localOnly = false,
+    bool online = false,
+  }) => _load(() async {
+    if (online) {
+      return repository.resolveOnline(drama, episode, quality: quality);
+    }
+    if (localOnly) {
+      final plan = await repository.localPlayback(drama, episode);
+      if (plan == null || !plan.local) {
+        throw AppFailure('本地视频不可用，请重新下载或选择在线播放。', code: 'local_media');
+      }
+      return plan;
+    }
+    return repository.resolve(drama, episode, quality: quality);
+  });
 
   Future<PlaybackPlan?> fallback(PlaybackPlan current) =>
       _load(() => repository.fallback(current));

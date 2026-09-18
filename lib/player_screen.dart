@@ -25,12 +25,14 @@ class PlayerScreen extends StatefulWidget {
     required this.repository,
     required this.store,
     this.initialPosition = 0,
+    this.localOnly = false,
     this.playerFactory,
     this.videoBuilder,
   });
   final DramaDetail detail;
   final int initialIndex;
   final double initialPosition;
+  final bool localOnly;
   final AppRepository repository;
   final LocalStore store;
   @visibleForTesting
@@ -58,6 +60,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   int _generation = 0;
   int _requestedQuality = 0;
   bool _loading = true;
+  bool _forceOnline = false;
+  bool _localFailure = false;
   bool _fullscreen = false;
   bool _closed = false;
   bool _acceptErrors = false;
@@ -226,7 +230,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     _errorTimer?.cancel();
     _pendingError = false;
     final position = _currentPosition;
-    final action = _recovery.next(current);
+    final action = current.local
+        ? PlaybackRecoveryAction.stop
+        : _recovery.next(current);
     if (action == PlaybackRecoveryAction.stop) {
       _resumePosition = position;
       final ticket = _generation;
@@ -247,7 +253,10 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (mounted && !_closed && ticket == _generation) {
         setState(() {
           _loading = false;
-          _error = '自动恢复未成功，请检查网络后重试，也可换一集或选择其他清晰度。';
+          _localFailure = current.local;
+          _error = current.local
+              ? '本地视频读取失败，请重试或重新下载；也可以手动改为在线播放。'
+              : '自动恢复未成功，请检查网络后重试，也可换一集或选择其他清晰度。';
         });
       }
       return;
@@ -299,6 +308,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (_closed || index < 0 || index >= widget.detail.episodes.length) {
       return;
     }
+    if (index != _index) _forceOnline = false;
     final ticket = ++_generation;
     _acceptErrors = false;
     _pendingError = false;
@@ -313,6 +323,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       _index = index;
       _loading = true;
       _error = null;
+      _localFailure = false;
       _loadingMessage = switch (recoveryAction) {
         PlaybackRecoveryAction.alternative => '正在切换备用线路',
         PlaybackRecoveryAction.refresh => '正在重新获取播放地址',
@@ -347,6 +358,8 @@ class _PlayerScreenState extends State<PlayerScreen>
               widget.detail.drama,
               widget.detail.episodes[index],
               quality: _requestedQuality,
+              localOnly: widget.localOnly,
+              online: _forceOnline,
             );
       if (prepared == null) {
         return;
@@ -368,7 +381,9 @@ class _PlayerScreenState extends State<PlayerScreen>
               'seg_max_retry=3',
               'strict=experimental',
               'allowed_extensions=ALL',
-              'protocol_whitelist=[http,https,tcp,tls,crypto,data,file]',
+              plan.local
+                  ? 'protocol_whitelist=[file,crypto,data]'
+                  : 'protocol_whitelist=[http,https,tcp,tls,crypto,data,file]',
               if (plan.decryptionKey.isNotEmpty)
                 'decryption_key=${plan.decryptionKey}',
             ].join(','),
@@ -412,6 +427,9 @@ class _PlayerScreenState extends State<PlayerScreen>
           if (mounted && !_closed && ticket == _generation) {
             setState(() {
               _loading = false;
+              _localFailure =
+                  (error is AppFailure && error.code == 'local_media') ||
+                  (widget.localOnly && !_forceOnline);
               _error = error is AppFailure ? error.message : '无法播放这一集，请重试或换一集。';
             });
           }
@@ -424,6 +442,11 @@ class _PlayerScreenState extends State<PlayerScreen>
         await widget.repository.release(retained!.session);
       }
     }
+  }
+
+  Future<void> _switchOnline() async {
+    _forceOnline = true;
+    await _retry();
   }
 
   Future<void> _retry({int? quality}) async {
@@ -677,7 +700,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   Widget _videoPane() {
     final title =
-        '${widget.detail.drama.title} · 第 ${widget.detail.episodes[_index].number} 集${widget.detail.episodes[_index].vip ? ' · VIP 试看' : ''}${(_plan?.routeIndex ?? 0) > 0 ? ' · 线路 ${_plan!.routeIndex + 1}' : ''}';
+        '${widget.detail.drama.title} · 第 ${widget.detail.episodes[_index].number} 集${_plan?.local == true ? ' · 本地' : ''}${widget.detail.episodes[_index].vip ? ' · VIP 试看' : ''}${(_plan?.routeIndex ?? 0) > 0 ? ' · 线路 ${_plan!.routeIndex + 1}' : ''}';
     final Widget controls = _television
         ? TelevisionControls(
             player: _player,
@@ -737,7 +760,14 @@ class _PlayerScreenState extends State<PlayerScreen>
               title: '暂时无法播放',
               message: _error!,
               onRetry: () => _retry(),
-              action: '重试播放',
+              action: _localFailure ? '重试本地播放' : '重试播放',
+              secondaryAction: _localFailure
+                  ? TextButton.icon(
+                      onPressed: _switchOnline,
+                      icon: const Icon(Icons.cloud_outlined),
+                      label: const Text('改为在线播放'),
+                    )
+                  : null,
               icon: Icons.play_disabled_rounded,
             ),
           ),

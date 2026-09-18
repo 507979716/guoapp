@@ -68,18 +68,21 @@ type nativeDrama struct {
 }
 
 type nativeInput struct {
-	Action    string      `json:"action"`
-	Directory string      `json:"directory"`
-	Source    string      `json:"source"`
-	Page      int         `json:"page"`
-	Query     string      `json:"query"`
-	Drama     nativeDrama `json:"drama"`
-	Chapter   Chapter     `json:"chapter"`
-	Index     int         `json:"index"`
-	Quality   int         `json:"quality"`
-	Session   string      `json:"session"`
-	Sequence  int64       `json:"sequence"`
-	Force     bool        `json:"force"`
+	Entries   []nativeDownloadEpisode `json:"entries"`
+	JobID     string                  `json:"jobId"`
+	Command   string                  `json:"command"`
+	Action    string                  `json:"action"`
+	Directory string                  `json:"directory"`
+	Source    string                  `json:"source"`
+	Page      int                     `json:"page"`
+	Query     string                  `json:"query"`
+	Drama     nativeDrama             `json:"drama"`
+	Chapter   Chapter                 `json:"chapter"`
+	Index     int                     `json:"index"`
+	Quality   int                     `json:"quality"`
+	Session   string                  `json:"session"`
+	Sequence  int64                   `json:"sequence"`
+	Force     bool                    `json:"force"`
 }
 
 type nativeCatalogResult struct {
@@ -92,6 +95,7 @@ type nativeCatalogResult struct {
 }
 
 type nativePlan struct {
+	Local      bool              `json:"local"`
 	URL        string            `json:"url"`
 	Headers    map[string]string `json:"headers"`
 	Key        string            `json:"decryptionKey,omitempty"`
@@ -103,6 +107,7 @@ type nativePlan struct {
 }
 
 type nativeEngine struct {
+	downloads        *nativeDownloads
 	downloader       *Downloader
 	directory        string
 	mu               sync.Mutex
@@ -192,6 +197,7 @@ func newNativeEngine(directory string) (*nativeEngine, error) {
 	engine := &nativeEngine{downloader: d, directory: directory, catalogs: map[string][]nativeDrama{}, catalogStates: map[string]nativeCatalogState{}}
 	engine.loadCatalogCache()
 	engine.covers = newNativeCoverCache(directory, d)
+	engine.downloads = newNativeDownloads(engine)
 	return engine, nil
 }
 
@@ -209,6 +215,9 @@ func NativeRequest(raw string) (result string) {
 	envelope := map[string]any{"ok": err == nil}
 	if err != nil {
 		envelope["error"] = publicError(err).Error()
+		if errors.Is(err, errNativeLocalFile) {
+			envelope["code"] = "local_media"
+		}
 	} else {
 		envelope["data"] = data
 	}
@@ -231,7 +240,7 @@ func nativeDispatch(input nativeInput) (any, error) {
 			nativeState.engine = engine
 		}
 		nativeState.Unlock()
-		return map[string]any{"version": "0.1.3", "standalone": true}, nil
+		return map[string]any{"version": "0.1.4", "standalone": true}, nil
 	}
 	engine := nativeState.engine
 	nativeState.Unlock()
@@ -241,6 +250,17 @@ func nativeDispatch(input nativeInput) (any, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	switch input.Action {
+	case "downloads":
+		jobs, err := engine.downloads.snapshot()
+		return map[string]any{"jobs": jobs}, err
+	case "enqueueDownloads":
+		added, err := engine.downloads.enqueue(input)
+		return map[string]int{"added": added}, err
+	case "controlDownloads":
+		return true, engine.downloads.control(input.JobID, input.Command)
+	case "localPlayback":
+		plan, _, err := engine.downloads.localPlan(input.Drama.ID, input.Index)
+		return plan, err
 	case "catalog":
 		return engine.nativeCatalog(ctx, input)
 	case "cached":
@@ -411,6 +431,11 @@ func (engine *nativeEngine) nativeDetail(ctx context.Context, drama nativeDrama)
 func (engine *nativeEngine) nativeResolve(ctx context.Context, input nativeInput) (nativePlan, error) {
 	if _, _, valid := splitProviderDramaID(input.Drama.ID); !valid {
 		return nativePlan{}, errors.New("剧集信息无效")
+	}
+	if !input.Force && engine.downloads != nil {
+		if plan, found, err := engine.downloads.localPlan(input.Drama.ID, input.Index); found || err != nil {
+			return plan, err
+		}
 	}
 	media, err := engine.downloader.resolveProviderMedia(ctx, Task{DramaID: input.Drama.ID, DramaTitle: input.Drama.Title, Chapter: input.Chapter, Index: input.Index})
 	if err != nil {
