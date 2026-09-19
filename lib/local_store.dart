@@ -40,7 +40,8 @@ class LocalStore extends ChangeNotifier {
   bool get locked => _locked;
   int get profileEpoch => _epoch;
   bool get canDownload => !locked && (profile.admin || profile.download);
-  bool allowsSource(String source) => !locked && profile.allows(source);
+  bool allowsSource(String source) =>
+      !locked && SourceSite.isAvailable(source) && profile.allows(source);
   List<SourceSite> get sources =>
       SourceSite.values.where((s) => allowsSource(s.id)).toList();
   String _key(String key, [String? id]) =>
@@ -71,8 +72,16 @@ class LocalStore extends ChangeNotifier {
       .toList()
       .reversed
       .toList();
-  WatchEntry? watched(String id) => locked ? null : _history[id];
-  bool isFavorite(String id) => !locked && _favorites.containsKey(id);
+  WatchEntry? watched(String id) {
+    final entry = _history[id];
+    return entry != null && allowsSource(entry.drama.source) ? entry : null;
+  }
+
+  bool isFavorite(String id) {
+    final drama = _favorites[id];
+    return drama != null && allowsSource(drama.source);
+  }
+
   bool get hideVip => preferences.getBool(_key('hideVip')) ?? true;
   String get displayMode => preferences.getString('displayMode') ?? 'auto';
   String get themeMode {
@@ -273,7 +282,9 @@ class LocalStore extends ChangeNotifier {
     if (cleanName.isEmpty || cleanName.length > 40) {
       throw StateError('用户名需要 1 至 40 个字符');
     }
-    if (sources.any((s) => !SourceSite.values.any((site) => site.id == s))) {
+    if (sources.any(
+      (s) => !SourceSite.knownValues.any((site) => site.id == s),
+    )) {
       throw StateError('站源无效');
     }
     if (targetId != 'default' &&

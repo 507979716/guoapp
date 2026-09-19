@@ -1,6 +1,7 @@
 import 'package:duanju_app/local_store.dart';
 import 'package:duanju_app/main.dart';
 import 'package:duanju_app/models.dart';
+import 'package:duanju_app/app_build.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -26,17 +27,21 @@ void main() {
       await tester.pumpWidget(DuanjuApp(repository: repository, store: local));
       await tester.pumpAndSettle();
       expect(find.text('VIP：隐藏'), findsNothing);
-      await tester.tap(find.text('黄豆'));
-      await tester.pumpAndSettle();
       expect(find.text('测试短剧'), findsOneWidget);
-      expect(find.text('会员测试剧'), findsNothing);
-      expect(find.text('VIP：隐藏'), findsOneWidget);
-      await tester.tap(find.text('VIP：隐藏'));
-      await tester.pumpAndSettle();
-      expect(find.text('VIP：显示'), findsOneWidget);
-      expect(find.text('会员测试剧'), findsOneWidget);
-      await tester.tap(find.text('VIP：显示'));
-      await tester.pumpAndSettle();
+      if (allSourcesEnabled) {
+        await tester.tap(find.text('黄豆'));
+        await tester.pumpAndSettle();
+        expect(find.text('会员测试剧'), findsNothing);
+        expect(find.text('VIP：隐藏'), findsOneWidget);
+        await tester.tap(find.text('VIP：隐藏'));
+        await tester.pumpAndSettle();
+        expect(find.text('VIP：显示'), findsOneWidget);
+        expect(find.text('会员测试剧'), findsOneWidget);
+        await tester.tap(find.text('VIP：显示'));
+        await tester.pumpAndSettle();
+      } else {
+        expect(find.text('黄豆'), findsNothing);
+      }
       expect(find.text('会员测试剧'), findsNothing);
       await tester.tap(find.text('测试短剧'));
       await tester.pumpAndSettle();

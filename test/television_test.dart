@@ -123,9 +123,14 @@ void main() {
           find.byKey(ValueKey('tv-source-${SourceSite.values.first.id}')),
         );
         await tester.pumpAndSettle();
-        await press(tester, LogicalKeyboardKey.arrowRight);
+        if (SourceSite.values.length > 1) {
+          await press(tester, LogicalKeyboardKey.arrowRight);
+        }
         await press(tester, LogicalKeyboardKey.select);
-        expect(repository.requests.last, SourceSite.values[1].id);
+        expect(
+          repository.requests.last,
+          SourceSite.values.length > 1 ? SourceSite.values[1].id : 'hongguo',
+        );
         focusRemote(tester, find.byKey(ValueKey(FixtureRepository.free.id)));
         await tester.pumpAndSettle();
         await press(tester, LogicalKeyboardKey.select);

@@ -146,7 +146,7 @@ func (engine *nativeEngine) moveDownloads(ctx context.Context, parent string) er
 	}
 	if _, err := os.Stat(target); !os.IsNotExist(err) {
 		manager.mu.Unlock()
-		return errors.New("目标中已有真果鉴下载目录，请选择空目录，避免覆盖文件")
+		return errors.New("目标中已有应用下载目录，请选择空目录，避免覆盖文件")
 	}
 	manager.moving = true
 	for id, job := range manager.jobs {

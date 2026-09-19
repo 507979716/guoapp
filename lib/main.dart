@@ -141,7 +141,7 @@ class DuanjuApp extends StatelessWidget {
       : AnimatedBuilder(animation: store!, builder: (_, _) => _application());
 
   Widget _application() => MaterialApp(
-    title: '真果鉴',
+    title: appName,
     debugShowCheckedModeBanner: false,
     locale: const Locale('zh', 'CN'),
     supportedLocales: const [Locale('zh', 'CN')],
@@ -205,7 +205,7 @@ class DuanjuApp extends StatelessWidget {
                     ),
                     const SizedBox(height: 24),
                     Text(
-                      bootstrapError ?? '正在打开真果鉴',
+                      bootstrapError ?? '正在打开$appName',
                       textAlign: TextAlign.center,
                       style: const TextStyle(fontSize: 18),
                     ),

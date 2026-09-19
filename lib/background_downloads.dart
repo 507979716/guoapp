@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'core_bridge.dart';
 import 'local_store.dart';
 import 'media_library.dart';
+import 'app_build.dart';
 
 @pragma('vm:entry-point')
 void downloadServiceEntry() {
@@ -21,7 +22,7 @@ class BackgroundDownloads {
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
         channelId: 'zhenguojian_downloads',
-        channelName: '真果鉴下载',
+        channelName: '$appName下载',
         channelDescription: '后台下载和媒体处理进度',
         onlyAlertOnce: true,
       ),
@@ -49,7 +50,7 @@ class BackgroundDownloads {
     final result = await FlutterForegroundTask.startService(
       serviceId: 2406,
       serviceTypes: [ForegroundServiceTypes.dataSync],
-      notificationTitle: '真果鉴',
+      notificationTitle: appName,
       notificationText: '正在准备下载',
       notificationButtons: [
         const NotificationButton(id: 'pause', text: '暂停下载'),
@@ -103,7 +104,7 @@ class DownloadTaskHandler extends TaskHandler {
       }
       final bytes = active.fold<int>(0, (total, job) => total + job.bytes);
       await FlutterForegroundTask.updateService(
-        notificationTitle: '真果鉴',
+        notificationTitle: appName,
         notificationText: work > 0
             ? '正在处理本地媒体'
             : active.isEmpty
@@ -112,7 +113,7 @@ class DownloadTaskHandler extends TaskHandler {
       );
     } catch (_) {
       await FlutterForegroundTask.updateService(
-        notificationTitle: '真果鉴',
+        notificationTitle: appName,
         notificationText: '正在等待下载任务',
       );
     } finally {

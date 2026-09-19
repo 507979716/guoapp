@@ -5,11 +5,15 @@ import shutil
 import zipfile
 from pathlib import Path
 
+from app_build import BuildVariant, add_variant_argument
+
 root = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
 parser.add_argument('--platform', choices=['android', 'windows'], required=True)
 parser.add_argument('--abi', action='append', choices=['arm64-v8a', 'armeabi-v7a', 'x86_64'])
+add_variant_argument(parser)
 options = parser.parse_args()
+variant = BuildVariant(options.all_sources)
 match = re.search(r'^version:\s*([\w.+-]+)\s*$', (root / 'pubspec.yaml').read_text(), re.MULTILINE)
 if not match:
     raise SystemExit('pubspec.yaml 缺少合法版本号。')
@@ -30,7 +34,7 @@ if options.platform == 'android':
             missing = set(required) - names
             if missing:
                 raise SystemExit('APK 缺少原生库：' + ', '.join(sorted(missing)))
-        target = output / f'zhenguojian-{version}-{abi}.apk'
+        target = output / f'{variant.slug}-{version}-{abi}.apk'
         shutil.copy2(source, target)
         artifacts.append(target)
 else:
@@ -41,15 +45,18 @@ else:
     missing = [name for name in required if not (bundle / name).is_file()]
     if missing:
         raise SystemExit('Windows 安装包缺少文件：' + ', '.join(missing))
-    target = output / f'zhenguojian-{version}-windows-x64.zip'
+    target = output / f'{variant.slug}-{version}-windows-x64.zip'
     with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as archive:
         for source in sorted(bundle.rglob('*')):
             if source.is_file():
-                archive.write(source, source.relative_to(bundle).as_posix())
+                relative = source.relative_to(bundle).as_posix()
+                if relative == 'zhenguojian.exe':
+                    relative = variant.slug + '.exe'
+                archive.write(source, relative)
     artifacts.append(target)
 
 checksums = []
-for artifact in artifacts:
+for artifact in sorted(output.glob(f'*-{version}-*')):
     digest = hashlib.sha256()
     with artifact.open('rb') as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b''):

@@ -2,8 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-const appName = '真果鉴';
-const appVersion = '0.2.2';
+export 'app_build.dart';
+
+const appVersion = '0.2.3';
 
 ThemeData televisionTheme(ThemeData theme) {
   final colors = theme.colorScheme;

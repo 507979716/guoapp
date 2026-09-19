@@ -2,6 +2,7 @@
 //
 #pragma code_page(65001)
 #include "resource.h"
+#include "app_branding.h"
 
 #define APSTUDIO_READONLY_SYMBOLS
 /////////////////////////////////////////////////////////////////////////////
@@ -90,11 +91,11 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "真果鉴" "\0"
-            VALUE "FileDescription", "真果鉴" "\0"
+            VALUE "FileDescription", APP_DISPLAY_NAME "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "真果鉴" "\0"
+            VALUE "InternalName", APP_DISPLAY_NAME "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.duanju. All rights reserved." "\0"
-            VALUE "OriginalFilename", "zhenguojian.exe" "\0"
+            VALUE "OriginalFilename", APP_EXECUTABLE_NAME "\0"
             VALUE "ProductName", "真果鉴" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END

@@ -1,18 +1,25 @@
-# 真果鉴
+# 红果鉴 / 真果鉴
 
-Flutter 多端独立短剧应用，原名“短剧库 APP”。站源请求、解析、下载和播放均在设备上完成，不依赖旧项目或自建服务。当前版本：**0.2.2+8**。
+Flutter 多端独立短剧应用，原名“短剧库 APP”。站源请求、解析、下载和播放均在设备上完成，不依赖旧项目或自建服务。当前版本：**0.2.3+9**。
 
-更名保留原 Android 应用标识及数据目录；使用同一签名的新 APK 覆盖升级，继续保留追剧、观看记录和下载任务。
+| 编译方式 | 应用名称 | 可用站源 |
+| --- | --- | --- |
+| 默认，不加参数 | 红果鉴 | 仅红果 |
+| 构建脚本加 `--all-sources` | 真果鉴 | 红果、黄豆、黄果视频、黄果 AI |
+
+这是编译选项，应用内不能切换版本。标题、Android 桌面名称与电视横幅、Windows 窗口与分发文件名、iOS 显示名随编译选项变化。界面、站源调用、原生下载调度同时限制可用站源；红果版不会访问或继续执行其他站源的旧任务。
+
+两版保留原 Android / iOS 应用标识及数据目录；Android 使用同一签名可相互覆盖升级，不能作为两个独立正式应用并排安装。Windows 沿用原内部产品标识与数据目录。切换版本保留追剧、观看记录、用户权限和下载记录；红果版隐藏其他站源内容，恢复全站源版后可继续使用。备份格式也保持兼容。
 
 ## 使用
 
 | 功能 | 操作 |
 | --- | --- |
-| 浏览 | “发现”切换站源，顶部刷新或下拉更新，底部加载更多；更新期间刷新图标持续旋转 |
+| 浏览 | “发现”浏览红果，全站源版可切换站源；顶部刷新或下拉更新，底部加载更多；更新期间刷新图标持续旋转 |
 | 搜索 | 红果联网搜索；输入停顿 300 毫秒显示官网联想词，匹配文字高亮，点击候选搜索。其他站源筛选已加载短剧 |
 | 详情 | 点击标题或封面均会补充剧集信息，再播放、选集或继续观看 |
 | 追剧与历史 | 每个用户独立保存；每 5 秒及退出播放时记录进度，已看完的分集从下一集续播 |
-| VIP | 仅黄豆显示筛选开关；默认“VIP：隐藏”，点击变为“VIP：显示”。其他站源不受此筛选影响；VIP 视频可能只有试看 |
+| VIP | 全站源版仅黄豆显示筛选开关；默认“VIP：隐藏”，点击变为“VIP：显示”。其他站源不受此筛选影响；VIP 视频可能只有试看 |
 | 手机播放 | 视频区域上滑下一集、下滑上一集，双击暂停；支持进度跳转、倍速、源站画质选择和自动连播 |
 | 横竖屏 | 按视频比例显示，横屏视频可跟随手机旋转，也可用全屏按钮手动切换 |
 | Windows | 空格暂停，左右方向键快退 / 快进 10 秒，F11 或 Ctrl+F 全屏，Esc 退出全屏或返回 |
@@ -22,9 +29,9 @@ Flutter 多端独立短剧应用，原名“短剧库 APP”。站源请求、�
 | 站源 | 浏览与播放 | 搜索 |
 | --- | --- | --- |
 | 红果 | 真人剧、漫剧、AI 剧及分集 | 联网搜索与官网搜索联想 |
-| 黄豆 | 列表、VIP 标记及分集 | 筛选已加载短剧 |
-| 黄果视频 | 列表、详情及分集 | 筛选已加载短剧 |
-| 黄果 AI | 列表、详情及分集 | 筛选已加载短剧 |
+| 黄豆（全站源版） | 列表、VIP 标记及分集 | 筛选已加载短剧 |
+| 黄果视频（全站源版） | 列表、详情及分集 | 筛选已加载短剧 |
+| 黄果 AI（全站源版） | 列表、详情及分集 | 筛选已加载短剧 |
 
 站源可用性、清晰度和区域限制取决于源站及网络；应用不解除源站 VIP 或其他授权限制。
 
@@ -132,7 +139,7 @@ exports/
 | 平台 | 包与状态 |
 | --- | --- |
 | Android 8.0+ 手机 | ARM64、ARMv7、x86_64 APK；普通手机选 `arm64-v8a`，Intel Android 才选 `x86_64` |
-| Windows 10/11 x64 | 完整 ZIP 解压后运行 `zhenguojian.exe`，保留所有 DLL 和 `data`；完整包运行验收需 Windows / Actions |
+| Windows 10/11 x64 | 完整 ZIP 解压后运行 `hongguojian.exe`，全站源版为 `zhenguojian.exe`，保留所有 DLL 和 `data`；完整包运行需 Windows / Actions |
 | Android TV | 与手机共用 APK，电视界面与遥控已覆盖自动化；待电视实机验收 |
 | iOS 15.1+ | 已加入工程、Go 核心链接、媒体依赖、文件管理和构建脚本；待 Xcode 构建与真机验收，没有已签名 IPA |
 
@@ -144,13 +151,13 @@ exports/
 
 推送 `main` / `master`、`v*` 标签、提交 PR，或手动运行 **Build app packages**，会先检查再构建：
 
-| Artifact | 内容 |
-| --- | --- |
-| `zhenguojian-android` | 三种架构 APK 和 SHA256 |
-| `zhenguojian-windows` | 完整 ZIP 和 SHA256；从解压包验证原生核心、FFprobe、换封装及播放器启动 |
-| `zhenguojian-ios-unsigned` | 未签名 `.app` ZIP 和 SHA256，不能直接当已签名 IPA 安装 |
+| 红果版 Artifact | 全站源版 Artifact | 内容 |
+| --- | --- | --- |
+| `hongguojian-android` | `zhenguojian-android` | 三种架构 APK 和 SHA256 |
+| `hongguojian-windows` | `zhenguojian-windows` | 完整 ZIP 和 SHA256；从解压包检查原生核心、FFprobe、换封装及播放器启动 |
+| `hongguojian-ios-unsigned` | `zhenguojian-ios-unsigned` | 未签名 `.app` ZIP 和 SHA256，不能直接当已签名 IPA 安装 |
 
-产物保留 14 天，不自动创建 GitHub Release。首次平台构建结果以实际 Actions 输出为准。
+Actions 分别传入默认参数与 `--all-sources` 构建两版，Flutter 和 Go 回归也覆盖两种编译配置。产物保留 14 天，不自动创建 GitHub Release。首次平台构建结果以实际 Actions 输出为准。
 
 Android 正式发布持续使用同一签名并递增构建号，在仓库 Secrets 配置：
 
@@ -184,16 +191,22 @@ Flutter `3.47.4`、Dart `3.12+`、Go `1.24.1+`、Python `3.10+`。Android 需要
 
 ~~~sh
 python3 scripts/build_android.py
+python3 scripts/build_android.py --all-sources
 python3 scripts/build_android.py --abi arm64-v8a
 python3 scripts/build_android.py --cn-mirrors
 ~~~
+
+首条默认生成红果鉴，第二条生成含全部站源的真果鉴。`--all-sources` 可以与 `--abi`、`--cn-mirrors` 组合，例如 `python3 scripts/build_android.py --all-sources --abi arm64-v8a --cn-mirrors`。
 
 Windows PowerShell：
 
 ~~~powershell
 .\scripts\build_windows.ps1
+.\scripts\build_windows.ps1 -AllSources
 .\scripts\build_windows.ps1 -ChinaMirrors
 ~~~
+
+Windows 也可运行 `python scripts/build_windows.py --all-sources`；省略参数为红果版。
 
 国内构建可使用以上镜像开关：Flutter/pub 使用 `storage.flutter-io.cn` / `pub.flutter-io.cn`，Android 的 Google、Maven Central 和 Gradle 插件依赖优先使用阿里云镜像，同时保留官方仓库。已有环境变量优先；镜像配置仅作用于本次构建，保留锁定的依赖版本与 SHA256 校验值；结束后恢复原锁文件并清理临时 Gradle 配置，不改全局代理。GitHub Actions 默认使用官方源。镜像可能有同步延迟，遇到镜像缺失或异常可去掉开关重试；此开关不替代 Flutter SDK 和 Gradle 发行包的初次安装。
 
@@ -201,6 +214,7 @@ iOS 未签名构建、只生成核心、或额外生成模拟器核心（不会�
 
 ~~~sh
 python3 scripts/build_ios.py
+python3 scripts/build_ios.py --all-sources
 python3 scripts/build_ios.py --core-only
 python3 scripts/build_ios.py --core-only --simulator
 ~~~
@@ -211,7 +225,7 @@ python3 scripts/build_ios.py --core-only --simulator
 python3 scripts/build_ios.py --export-options /path/to/ExportOptions.plist
 ~~~
 
-产物在 `dist/android`、`dist/windows`、`dist/ios`。iOS 脚本将 Go 核心生成 XCFramework，再经 CocoaPods 链接并检查 FFI 导出符号；媒体库随应用打包。
+产物在 `dist/android`、`dist/windows`、`dist/ios`，红果版以 `hongguojian-` 开头，全站源版以 `zhenguojian-` 开头。iOS 脚本将 Go 核心生成 XCFramework，再经 CocoaPods 链接并检查 FFI 导出符号；媒体库随应用打包。
 
 首次 Android 调试先编译对应架构核心：
 
@@ -222,6 +236,8 @@ flutter run
 ~~~
 
 Windows 对应 `--platform windows` 和 `flutter run -d windows`。
+
+直接使用 Flutter 命令调试全站源版时，先给 `build_native.py` 加 `--all-sources`，再运行 `flutter run --dart-define=ALL_SOURCES=true`；iOS 对应 `build_ios.py --core-only --all-sources`。切回默认版同样重新构建默认核心，Flutter 参数省略或设为 `--dart-define=ALL_SOURCES=false`。脚本会同步设置 Dart 常量和 Go 编译参数，应用启动时检查二者是否一致，避免混装原生库。
 
 播放器使用 [media_kit](https://github.com/media-kit/media-kit) / libmpv，合并和导出使用 [FFmpegKit min-gpl](https://github.com/sk3llo/ffmpeg_kit_flutter)，含 FFmpeg、x264 / x265 等 GPL 媒体组件，各组件适用上游许可证。FFmpegKit 不参与正常播放或下载的转码；系统 FFmpeg 只用于开发验证，用户不用另装。
 
@@ -234,8 +250,10 @@ python3 -m unittest discover -s scripts -p 'test_*.py'
 dart format --output=none --set-exit-if-changed lib test integration_test test_driver
 dart analyze --fatal-infos lib test integration_test test_driver
 flutter test --dart-define=DISABLE_REMOTE_IMAGES=true
+flutter test --dart-define=DISABLE_REMOTE_IMAGES=true --dart-define=ALL_SOURCES=true
 cd native
 go test -race ./...
+go test -race -ldflags="-X duanjuapp/native/core.buildAllSources=true" ./...
 ~~~
 
 合成媒体验证需要开发机安装 `ffmpeg` / `ffprobe`。测试覆盖权限隔离、备份校验、搜索防抖与旧结果、仅少数分集转码、CENC 解密换封装、Emby 元数据及删除原文件后的完整解码，不请求站源图片。
@@ -273,7 +291,7 @@ python3 scripts/sync_source.py --check
 
 ~~~sh
 cd ../guoapp
-git switch -c restore-v0.2.2 v0.2.2
+git switch -c restore-v0.2.3 v0.2.3
 ~~~
 
 从恢复分支继续工作，避免用尚未还原的开发目录再次覆盖；安装包和个人配置不属于源码恢复点。
@@ -286,28 +304,47 @@ git switch -c restore-v0.2.2 v0.2.2
 | `scripts`、`.github/workflows` | 构建、签名、验证、同步和版本快照 |
 | `test`、`integration_test` | 自动化与设备回归 |
 
-## TODO 与当前验证
+## 功能 TODO：与旧短剧库对照
 
-| 优先级 | 功能 | 进度 |
+以下是对旧项目 `../短剧库` 的 README、榜单与推荐接口、剧库 / 追剧页面、下载管理和播放逻辑的对照结果。已有解析辅助代码不代表 App 已接入该功能；本表以用户能实际进入的功能为准。后续按表中顺序完善，Android 手机和 Windows 同为首要平台；设备验收暂不作为功能待办。
+
+| 顺序 | 功能 | 尚缺内容 |
 | --- | --- | --- |
-| P0 | 独立运行、四源浏览 / 详情 / 播放、Android 三架构、Windows 工程与 Actions | 已实现 |
-| P1 | 追剧 / 历史、切集 / 横屏、VIP、画质 / 倍速、缓存、自动切线 | 已实现 |
-| P1 | 浅色 / 深色 / 跟随系统、系统栏融合与底部导航美化 | 已实现，默认跟随系统 |
-| P1 | 刷新旋转反馈、海报尺寸统一、黄豆专属 VIP 筛选、下载页布局调整 | 本轮完成，自动化已通过，实机效果待安装验收 |
-| P1 | 红果官网联想、防抖、高亮与点击搜索 | 已实现 |
-| P1 | Android / Windows 国内依赖镜像开关、保持版本锁定 | 已实现 |
-| P2 | TV 布局、遥控器、统一 APK、电视入口 | 已实现，待电视实机验收 |
-| P3 | 下载、离线播放、Android 后台服务和通知 | 已实现，后台行为待真机回归 |
-| P3 | 下载目录迁移与空间统计 | 已实现 |
-| P3 | 合并、仅转换少数不一致分集、成品本地播放 | 已实现 |
-| P3 | Emby 批量 / 自动导出、NFO、海报 URL / 可选海报文件 | 已实现 |
-| P3 | 本地用户、站源 / 下载权限、记录隔离和备份 | 已实现 |
-| P4 | iOS 工程、核心链接、文件目录、前后台处理、构建流程 | 已实施，待 Xcode 构建与真机验收 |
+| P1-1 | [ ] 榜单 | 红果总热播、真人剧、漫剧、AI 剧榜；全站源版补黄豆总榜 / 魔改 / 搜索 / 收藏 / 完结榜和黄果 AI 热播 / 推荐 / 潜力榜。接入真实名次、源站顺序、分页、刷新与错误缓存回退；当前 App 尚无榜单入口 |
+| P1-2 | [ ] 红果分类推荐 | 真人剧、漫剧、AI 剧推荐入口，分别保存分页游标、会话与去重记录，支持刷新和“继续推荐”。当前普通目录不能代替旧项目的推荐流；范围为公开推荐，不含官方账号个性化同步 |
+| P1-3 | [ ] 排序、分类与完整资料 | 名称 / 自然季号、上线日期、热度、播放量排序，未知值置后；分类、连载 / 完结筛选；将日期、热度、标签等已解析字段传给 App 并更新详情与收藏。全站源版补“全部站源”合并视图 |
+| P1-4 | [ ] 搜索完整性 | 红果官网搜索与名称检索合并去重，补漏季、部分失败保留有效结果；最近搜索、忽略标点 / 全角差异、分词匹配、相关度与自然季号排序。已有官网搜索及联想；其他站源仍只筛选已加载内容 |
+| P2-1 | [ ] 追剧与历史完善 | 想看 / 在看 / 已看、独立手动已看标记、新集数量与已读基准、继续观看入口；历史搜索和单条删除。已有收藏、实际播放进度、自动续播与历史清空 |
+| P2-2 | [ ] 剧库管理与统一更新 | 卡片收藏 / 下载快捷操作、多选批量下载；一次更新兼顾查新、续载历史分页和分批补齐旧资料；站源状态面板及各站独立更新、数量 / 进度 / 错误展示。已有刷新、加载更多和点开补充部分资料 |
+| P2-3 | [ ] 红果弹幕 | 按播放时间分段读取文字弹幕，随暂停、倍速、跳转和切集同步，提供开关。已有部分原生辅助逻辑，App 接口与播放器尚未接入 |
+| P2-4 | [ ] 下一集预加载与缓冲反馈 | 下一集提前解析 / 有界预取及开关，显示实际连续缓存时长 / 范围。当前有播放器自身缓冲与自动连播，尚无完整的下一集预取流程 |
+| P2-5 | [ ] 下载合集与批量操作 | 按剧分组，搜索及更细的任务 / 剧情状态筛选；按合集或分集多选暂停、继续、取消、重试；“更新本剧”只补新增 / 缺失分集；清理任务但保留视频。已有单集队列、三种状态筛选、整队列暂停 / 继续与删除 |
+| P2-6 | [ ] 下载偏好与目录组织 | 保存默认下载画质，下载并发可配置，按站源分类保存。已有单次画质选择、目录迁移与空间统计；并发目前固定为 2 |
+| P2-7 | [ ] 合并流程完善 | 连续集数检查、多剧排队合并与中断恢复状态；混合 HE-AAC / HE-AACv2 必要时统一 AAC-LC；合并流程中完整解码校验，成功后可选删除原分集。已有少数分集转换、补静音、时长核对、取消和本地全集播放 |
+| P2-8 | [ ] 黄豆 VIP 资料补齐（全站源版） | 区分未知 / 免费 / VIP，显示待识别数量，切换筛选时分批查询未知资料。已有黄豆专属 VIP 筛选与分集标记，但旧资料尚未完整补齐 |
+| P2-9 | [ ] Emby 合并版导出 | 将本地合并全集纳入导出，按特别篇记录实际集数范围。已有原分集批量 / 自动导出、NFO 与海报选项，不应把整个 Emby 功能误列为未移植 |
+| P3-1 | [ ] 应用网络与资源设置 | 应用内直连 / 自动 / 手动代理，目录请求并发与间隔设置，连接检测与可读错误诊断。当前使用原生默认网络参数和环境代理，没有完整设置面板 |
 
-本轮通过 Dart 格式与静态检查、62 项 Flutter 回归和 13 项构建镜像 / 同步 / 版本快照测试。新增覆盖刷新旋转及成功 / 失败恢复、黄豆专属 VIP 筛选、初始主题跟随系统并保留手动选择、发现 / 追剧 / 历史海报对齐，以及下载筛选和整队列操作。布局回归覆盖 320 / 360 / 390 像素手机、1280 像素桌面、960 像素电视和两倍字体。
+旧项目的 Docker / HTTP 服务、浏览器注册与远程账号、跨设备服务端记录、在线 STRM 签名网关和远程 Emby 定时同步依赖常驻服务器，不直接照搬为本 App 的缺失功能。当前对应能力是设备内用户与备份、原生播放器、本地媒体和 Emby 文件导出；如需跨设备联网服务，应另定范围。普通评论在旧项目中也未接入，不列为遗漏的已完成功能。
 
-正式安装包位于 `dist/android/zhenguojian-0.2.2+8-{arm64-v8a,armeabi-v7a,x86_64}.apk`，普通 Android 手机使用 `arm64-v8a`。
+### 已完成的功能
 
-按用户要求，本轮由用户自行安装验收界面效果，未执行手机 / 电视实机测试或启动模拟器。已加入禁用远程图片的界面设备回归入口 `integration_test/interface_test.dart`，尚未在设备运行。Windows 完整包运行验收需 Windows / Actions；本机缺少 iPhoneOS SDK，iOS 尚未完成 Xcode 构建和真机验收，也未执行远程 Actions。
+| 功能 | 当前实现 |
+| --- | --- |
+| 版本编译开关 | 本轮加入默认红果鉴 / `--all-sources` 真果鉴，贯通原生核心、Flutter、平台名称、分发文件与 Actions |
+| 在线播放闭环 | 独立站源浏览、搜索、详情、选集、播放、错误重试；全站源版支持四源 |
+| 播放与记录 | 画质、倍速、切集、横竖屏、自动连播、自动切线、收藏和本地续播 |
+| 界面与主题 | 默认跟随系统，浅色 / 深色选择；旋转刷新按钮、统一海报尺寸、黄豆专属 VIP 筛选、下载页布局调整 |
+| 离线与媒体 | 下载与续传、Android 后台服务、离线播放、目录迁移、合并、本地成品及分集 Emby 导出 |
+| 本地用户 | 站源 / 下载权限、独立记录、密码校验与备份恢复 |
+| 平台工程 | Android 三架构、Windows / iOS 构建脚本、TV 布局与遥控、国内依赖镜像、源码版本快照 |
 
-此前 Go 核心竞态回归、合成 CENC 换封装、少数分集合并转码及 Emby 成品独立解码验证已通过。本轮未修改 Go 核心。国内 pub 严格锁文件与 Gradle 镜像配置此前已验证；完整镜像构建仍以实际依赖可用性为准。
+### 当前检查与平台状态
+
+本轮通过 Dart 格式与静态检查、默认版和全站源版各 66 项 Flutter 回归、两种配置的 Go 竞态回归，以及 18 项 Python 脚本检查。新增覆盖旧站源选择回退、用户身份与记录保留、原生站源限制、后台下载调度、构建参数传递，以及 Windows / iOS 名称配置。
+
+两版均已生成 ARM64、ARMv7、x86_64 release APK，并核对应用名称、版本、架构、原生库、两版核心与 Dart 产物差异、SHA256 和与 0.2.2 的签名一致性。包位于 `dist/android/hongguojian-0.2.3+9-{arm64-v8a,armeabi-v7a,x86_64}.apk` 及对应的 `zhenguojian-0.2.3+9-*.apk`，普通手机选择 `arm64-v8a`。检查日志在 `build/editions-023`。
+
+按用户要求，由用户自行安装体验，未执行手机 / 电视实机测试或启动模拟器。Windows 完整包需 Windows / Actions；本机缺少 iPhoneOS SDK，iOS 尚未完成 Xcode 构建，也没有已签名 IPA。本轮不运行远程 Actions，不请求或处理站源图片。
+
+此前的合成 CENC 换封装、少数分集合并转码和 Emby 成品独立解码检查已通过。平台状态单独记录，不将待验收项目混入上面的功能移植顺序。

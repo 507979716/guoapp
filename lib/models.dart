@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'app_build.dart';
+
 class SourceSite {
   const SourceSite(this.id, this.name, this.description);
   final String id;
@@ -7,14 +9,17 @@ class SourceSite {
   final String description;
   bool get onlineSearch => id == 'hongguo';
 
-  static const values = [
-    SourceSite('hongguo', '红果', '短剧 · 漫剧 · AI 剧'),
+  static const hongguo = SourceSite('hongguo', '红果', '短剧 · 漫剧 · AI 剧');
+  static const knownValues = [
+    hongguo,
     SourceSite('huangdou', '黄豆', '精选短剧'),
     SourceSite('huangguo-video', '黄果视频', '视频剧集'),
     SourceSite('huangguoai', '黄果 AI', 'AI 短剧'),
   ];
+  static const values = allSourcesEnabled ? knownValues : [hongguo];
+  static bool isAvailable(String id) => values.any((site) => site.id == id);
   static SourceSite byId(String id) =>
-      values.firstWhere((site) => site.id == id, orElse: () => values.first);
+      knownValues.firstWhere((site) => site.id == id, orElse: () => hongguo);
 }
 
 int intValue(Object? value) =>

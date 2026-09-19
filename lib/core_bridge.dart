@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import 'models.dart';
 import 'background_downloads.dart';
 import 'local_store.dart';
+import 'app_build.dart';
 
 typedef _NativeRequest = Pointer<Utf8> Function(Pointer<Utf8>);
 typedef _DartRequest = Pointer<Utf8> Function(Pointer<Utf8>);
@@ -103,6 +104,9 @@ class NativeRepository extends AppRepository {
   LocalStore? access;
 
   void _authorize(String source, {bool download = false}) {
+    if (!SourceSite.isAvailable(source)) {
+      throw AppFailure('当前版本不包含此站源');
+    }
     if (access == null) return;
     if (access!.locked ||
         !access!.allowsSource(source) ||
@@ -225,7 +229,7 @@ class NativeRepository extends AppRepository {
     } on AppFailure {
       rethrow;
     } on TimeoutException {
-      throw AppFailure('站源响应超时，请重试或切换站源');
+      throw AppFailure('站源响应超时，请重试');
     } catch (_) {
       throw AppFailure('本地核心加载失败，请使用完整安装包重新安装');
     }
@@ -234,7 +238,13 @@ class NativeRepository extends AppRepository {
   @override
   Future<void> initialize() async {
     final directory = await getApplicationSupportDirectory();
-    await _call({'action': 'initialize', 'directory': directory.path});
+    final build = await _call({
+      'action': 'initialize',
+      'directory': directory.path,
+    });
+    if (build['allSources'] != allSourcesEnabled) {
+      throw AppFailure('应用与原生核心的站源版本不一致，请使用完整安装包重新安装');
+    }
     if (!background) await BackgroundDownloads.prepare();
   }
 
@@ -313,7 +323,9 @@ class NativeRepository extends AppRepository {
         .whereType<Map>()
         .map((value) => DownloadJob.fromJson(Map<String, dynamic>.from(value)))
         .where(
-          (job) => access == null || access!.allowsSource(job.drama.source),
+          (job) =>
+              SourceSite.isAvailable(job.drama.source) &&
+              (access == null || access!.allowsSource(job.drama.source)),
         )
         .toList();
   }

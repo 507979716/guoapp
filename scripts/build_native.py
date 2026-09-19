@@ -5,11 +5,15 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from app_build import BuildVariant, add_variant_argument
+
 root = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
 parser.add_argument('--platform', choices=['android', 'windows', 'darwin'], required=True)
 parser.add_argument('--abi', action='append', choices=['arm64-v8a', 'armeabi-v7a', 'x86_64'])
+add_variant_argument(parser)
 options = parser.parse_args()
+variant = BuildVariant(options.all_sources)
 
 environment = os.environ.copy()
 environment.setdefault('GOPROXY', 'https://goproxy.cn,direct')
@@ -34,7 +38,7 @@ def build(goos, architecture, compiler, output, extra=None):
         build_env.update(extra)
     print('Building ' + str(output.relative_to(root)), flush=True)
     subprocess.run([go, 'build', '-trimpath', '-buildmode=c-shared',
-                    '-ldflags=-s -w', '-o', str(output), './bridge'],
+                    '-ldflags=' + variant.linker_flags, '-o', str(output), './bridge'],
                    cwd=root / 'native', env=build_env, check=True)
 
 if options.platform == 'android':

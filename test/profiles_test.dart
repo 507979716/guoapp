@@ -137,7 +137,7 @@ void main() {
             isA<AppFailure>().having(
               (e) => e.message,
               'message',
-              contains('权限'),
+              anyOf(contains('权限'), contains('版本不包含')),
             ),
           ),
         );

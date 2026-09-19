@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'local_profiles.dart';
 import 'local_store.dart';
 import 'models.dart';
+import 'app_build.dart';
 
 class ProfilesScreen extends StatefulWidget {
   const ProfilesScreen({super.key, required this.store, this.locked = false});
@@ -50,11 +51,20 @@ class _ProfilesScreenState extends State<ProfilesScreen> {
     if (mounted) setState(() {});
   }
 
+  String _permissionsLabel(LocalProfile profile) {
+    if (profile.admin) return '管理员 · 全部权限';
+    final sources = profile.sources
+        .where(SourceSite.isAvailable)
+        .map((id) => SourceSite.byId(id).name)
+        .join(' / ');
+    return '${sources.isEmpty ? '未开放站源' : sources} · ${profile.download ? '可下载' : '仅在线观看'}';
+  }
+
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: widget.store,
     builder: (_, _) => Scaffold(
-      appBar: AppBar(title: Text(widget.locked ? '解锁真果鉴' : '用户管理')),
+      appBar: AppBar(title: Text(widget.locked ? '解锁$appName' : '用户管理')),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
@@ -94,11 +104,7 @@ class _ProfilesScreenState extends State<ProfilesScreen> {
                           : Icons.person_outline,
                     ),
                     title: Text(profile.name),
-                    subtitle: Text(
-                      profile.admin
-                          ? '管理员 · 全部权限'
-                          : '${profile.sources.map((id) => SourceSite.byId(id).name).join(' / ').isEmpty ? '未开放站源' : profile.sources.map((id) => SourceSite.byId(id).name).join(' / ')} · ${profile.download ? '可下载' : '仅在线观看'}',
-                    ),
+                    subtitle: Text(_permissionsLabel(profile)),
                     onTap: _busy ? null : () => _switch(profile),
                     trailing: !widget.store.locked && widget.store.profile.admin
                         ? IconButton(

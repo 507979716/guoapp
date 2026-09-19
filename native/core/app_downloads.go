@@ -104,6 +104,10 @@ func (manager *nativeDownloads) load() error {
 		if record.File != "" && record.File != "media.mp4" && record.File != "index.m3u8" {
 			continue
 		}
+		if !nativeDownloadAvailable(record.nativeDownloadJob) {
+			manager.jobs[record.ID] = record
+			continue
+		}
 		switch record.State {
 		case "removing":
 			if err := os.RemoveAll(filepath.Join(manager.root, record.ID)); err != nil {
@@ -170,7 +174,9 @@ func (manager *nativeDownloads) snapshot() ([]nativeDownloadJob, error) {
 	}
 	jobs := make([]nativeDownloadJob, 0, len(manager.jobs))
 	for _, record := range manager.jobs {
-		jobs = append(jobs, record.nativeDownloadJob)
+		if nativeDownloadAvailable(record.nativeDownloadJob) {
+			jobs = append(jobs, record.nativeDownloadJob)
+		}
 	}
 	sort.Slice(jobs, func(i, j int) bool {
 		if jobs[i].Created == jobs[j].Created {
@@ -182,6 +188,9 @@ func (manager *nativeDownloads) snapshot() ([]nativeDownloadJob, error) {
 }
 
 func (manager *nativeDownloads) enqueue(input nativeInput) (int, error) {
+	if !nativeDramaAvailable(input.Drama) {
+		return 0, errNativeBuildSource
+	}
 	if _, _, valid := splitProviderDramaID(input.Drama.ID); !valid {
 		return 0, errors.New("剧集信息无效")
 	}
@@ -189,6 +198,9 @@ func (manager *nativeDownloads) enqueue(input nativeInput) (int, error) {
 		return 0, errors.New("请选择 1 至 500 集加入下载")
 	}
 	for _, entry := range input.Entries {
+		if !nativeChapterAvailable(input.Drama, entry.Chapter) {
+			return 0, errNativeBuildSource
+		}
 		if entry.Index < 1 || entry.Index > 100000 {
 			return 0, errors.New("下载集数无效")
 		}
@@ -243,6 +255,9 @@ func (manager *nativeDownloads) control(id, action string) error {
 	switch action {
 	case "pauseAll", "resumeAll":
 		for _, job := range manager.jobs {
+			if !nativeDownloadAvailable(job.nativeDownloadJob) {
+				continue
+			}
 			if action == "pauseAll" && (job.State == "queued" || job.State == "downloading") {
 				job.State = "paused"
 				if cancel := manager.active[job.ID]; cancel != nil {
@@ -257,6 +272,9 @@ func (manager *nativeDownloads) control(id, action string) error {
 		job := manager.jobs[id]
 		if job == nil {
 			return errors.New("下载任务不存在，请刷新列表")
+		}
+		if !nativeDownloadAvailable(job.nativeDownloadJob) {
+			return errNativeBuildSource
 		}
 		switch action {
 		case "pause":
@@ -298,7 +316,7 @@ func (manager *nativeDownloads) scheduleLocked() {
 	for len(manager.active) < 2 {
 		var next *nativeDownloadRecord
 		for _, candidate := range manager.jobs {
-			if candidate.State != "queued" || manager.active[candidate.ID] != nil {
+			if candidate.State != "queued" || manager.active[candidate.ID] != nil || !nativeDownloadAvailable(candidate.nativeDownloadJob) {
 				continue
 			}
 			if next == nil || candidate.Created < next.Created ||
@@ -399,11 +417,17 @@ func (manager *nativeDownloads) transfer(ctx context.Context, job nativeDownload
 }
 
 func (manager *nativeDownloads) localPlan(drama string, index int) (nativePlan, bool, error) {
+	if !nativeDramaAvailable(nativeDrama{ID: drama}) {
+		return nativePlan{}, false, errNativeBuildSource
+	}
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
 	record := manager.jobs[nativeDownloadID(drama, index)]
 	if record == nil {
 		return nativePlan{}, false, nil
+	}
+	if !nativeDownloadAvailable(record.nativeDownloadJob) {
+		return nativePlan{}, false, errNativeBuildSource
 	}
 	if record.State != "completed" {
 		if record.File != "" {

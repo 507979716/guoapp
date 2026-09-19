@@ -5,7 +5,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 root = Path(__file__).resolve().parents[1]
-parser = argparse.ArgumentParser(description='从统一图形生成真果鉴平台资源；需要 Pillow。')
+parser = argparse.ArgumentParser(description='从统一图形生成红果鉴 / 真果鉴平台资源；需要 Pillow。')
 parser.add_argument('--output', type=Path, default=root)
 parser.add_argument('--font', type=Path, default=Path('/System/Library/Fonts/PingFang.ttc'))
 options = parser.parse_args()
@@ -27,9 +27,10 @@ for entry in contents['images']:
         save(icon.resize((size, size), Image.Resampling.LANCZOS),
              'ios/Runner/Assets.xcassets/AppIcon.appiconset/' + entry['filename'])
 save(icon.resize((256, 256), Image.Resampling.LANCZOS), 'windows/runner/resources/app_icon.ico')
-banner = Image.new('RGB', (640, 360), '#101114')
-banner.paste(icon.resize((180, 180), Image.Resampling.LANCZOS), (44, 90))
-draw = ImageDraw.Draw(banner)
 font = ImageFont.truetype(str(options.font), 76)
-draw.text((255, 128), '真果鉴', font=font, fill='white')
-save(banner, 'android/app/src/main/res/drawable-xhdpi/tv_banner.png')
+for name, resource in [('红果鉴', 'tv_banner'), ('真果鉴', 'tv_banner_all_sources')]:
+    banner = Image.new('RGB', (640, 360), '#101114')
+    banner.paste(icon.resize((180, 180), Image.Resampling.LANCZOS), (44, 90))
+    draw = ImageDraw.Draw(banner)
+    draw.text((255, 128), name, font=font, fill='white')
+    save(banner, f'android/app/src/main/res/drawable-xhdpi/{resource}.png')

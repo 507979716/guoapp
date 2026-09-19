@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:duanju_app/app_theme.dart';
+import 'package:duanju_app/app_build.dart';
 import 'package:duanju_app/core_bridge.dart';
 import 'package:duanju_app/downloads_screen.dart';
 import 'package:duanju_app/local_store.dart';
@@ -105,6 +106,12 @@ void main() {
         expect(find.textContaining('VIP：'), findsNothing);
         expect(find.text('会员合成剧'), findsOneWidget);
       }
+    }
+    if (!allSourcesEnabled) {
+      for (final source in SourceSite.knownValues.skip(1)) {
+        expect(find.widgetWithText(ChoiceChip, source.name), findsNothing);
+      }
+      return;
     }
     final huangdou = find.widgetWithText(ChoiceChip, '黄豆');
     await tester.ensureVisible(huangdou);

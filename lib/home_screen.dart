@@ -257,6 +257,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Drama> get _visible {
     final query = _search.text.trim().toLowerCase();
     return _items.where((drama) {
+      if (!widget.store.allowsSource(drama.source)) return false;
       if (_hideVip && drama.vip) {
         return false;
       }
@@ -286,7 +287,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(width: 9),
                 const Text(
-                  '真果鉴',
+                  appName,
                   style: TextStyle(fontWeight: FontWeight.w800),
                 ),
               ],
@@ -326,7 +327,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   } else if (value == 'about') {
                     showAboutDialog(
                       context: context,
-                      applicationName: '真果鉴',
+                      applicationName: appName,
                       applicationVersion: AppLayout.versionOf(context),
                       applicationIcon: const Icon(
                         Icons.play_circle_filled_rounded,
@@ -343,7 +344,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   const PopupMenuItem(value: 'users', child: Text('用户管理')),
                   const PopupMenuItem(value: 'settings', child: Text('设置与备份')),
                   const PopupMenuItem(value: 'display', child: Text('界面模式')),
-                  const PopupMenuItem(value: 'about', child: Text('关于真果鉴')),
+                  const PopupMenuItem(
+                    value: 'about',
+                    child: Text('关于$appName'),
+                  ),
                 ],
               ),
               const SizedBox(width: 8),
@@ -647,8 +651,10 @@ class _HomeScreenState extends State<HomeScreen> {
               ? StatusPanel(
                   title: '没有找到匹配的短剧',
                   message: _hideVip
-                      ? '可以换个搜索词、切换站源，或显示 VIP 内容。'
-                      : '可以换个搜索词或切换站源。',
+                      ? '可以换个搜索词，或显示 VIP 内容。'
+                      : widget.store.sources.length > 1
+                      ? '可以换个搜索词或切换站源。'
+                      : '可以换个搜索词，或刷新后重试。',
                   onRetry:
                       _hasMore &&
                           !_loadingMore &&

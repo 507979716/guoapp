@@ -11,6 +11,7 @@ import 'app_theme.dart';
 import 'background_downloads.dart';
 import 'local_store.dart';
 import 'profiles_screen.dart';
+import 'app_build.dart';
 
 String storageSize(int bytes) {
   if (bytes < 0) return '暂不可用';
@@ -76,7 +77,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final content = await widget.store.exportBackup();
         final saved = await FilePicker.saveFile(
           fileName:
-              'zhenguojian-backup-${DateTime.now().toIso8601String().substring(0, 10)}.json',
+              '$appSlug-backup-${DateTime.now().toIso8601String().substring(0, 10)}.json',
           bytes: Uint8List.fromList(utf8.encode(content)),
           mimeType: 'application/json',
         );

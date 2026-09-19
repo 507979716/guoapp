@@ -230,6 +230,9 @@ func NativeRequest(raw string) (result string) {
 }
 
 func nativeDispatch(input nativeInput) (any, error) {
+	if err := nativeAuthorizeInput(input); err != nil {
+		return nil, err
+	}
 	nativeState.Lock()
 	if input.Action == "initialize" {
 		if nativeState.engine == nil {
@@ -241,7 +244,7 @@ func nativeDispatch(input nativeInput) (any, error) {
 			nativeState.engine = engine
 		}
 		nativeState.Unlock()
-		return map[string]any{"version": "0.2.0", "standalone": true}, nil
+		return map[string]any{"version": "0.2.3", "standalone": true, "allSources": buildAllSources == "true"}, nil
 	}
 	engine := nativeState.engine
 	nativeState.Unlock()
@@ -402,7 +405,7 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 		return result, err
 	}
 	if len(items) == 0 && page == 1 {
-		return result, errors.New("站源暂未返回剧集，请稍后刷新或切换站源")
+		return result, errors.New("站源暂未返回剧集，请稍后刷新")
 	}
 	if err != nil {
 		result.Warning = publicError(err).Error()
