@@ -75,7 +75,17 @@ jobs:
           flutter-version: '3.47.4'
           channel: stable
           cache: true
-      - run: sdkmanager 'ndk;28.2.13676358'
+      - name: Install Android NDK
+        run: |
+          sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          manager="$(find "$sdk/cmdline-tools" -maxdepth 4 -type f -name sdkmanager | sort | tail -n 1)"
+          if [ -z "$manager" ]; then
+            echo "未找到 sdkmanager，SDK 目录：$sdk"
+            exit 1
+          fi
+          yes | "$manager" --licenses > /dev/null 2>&1 || true
+          "$manager" --install 'ndk;28.2.13676358'
+          test -d "$sdk/ndk/28.2.13676358"
       - name: Configure Android signing
         run: python scripts/configure_signing.py
         env:
@@ -119,9 +129,22 @@ jobs:
           flutter-version: '3.47.4'
           channel: stable
           cache: true
-      - uses: egor-tensin/setup-mingw@v2
-        with:
-          platform: x64
+      - name: Install MinGW-w64
+        shell: pwsh
+        run: |
+          choco install mingw --no-progress -y
+          $candidates = @(
+            'C:\ProgramData\mingw64\mingw64\bin',
+            'C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin'
+          )
+          $bin = $candidates | Where-Object { Test-Path (Join-Path $_ 'gcc.exe') } | Select-Object -First 1
+          if (-not $bin) {
+            $found = Get-ChildItem 'C:\ProgramData' -Recurse -Filter 'x86_64-w64-mingw32-gcc.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($found) { $bin = $found.Directory.FullName }
+          }
+          if (-not $bin) { throw 'MinGW-w64 安装后未找到 gcc' }
+          $bin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & (Join-Path $bin 'gcc.exe') --version | Select-Object -First 1
       - run: python scripts/build_windows.py ${{ matrix.arguments }}
       - run: choco install ffmpeg --no-progress -y
       - run: python scripts/smoke_windows.py ${{ matrix.arguments }}
