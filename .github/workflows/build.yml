@@ -146,6 +146,21 @@ jobs:
           $bin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           & (Join-Path $bin 'gcc.exe') --version | Select-Object -First 1
       - run: python scripts/build_windows.py ${{ matrix.arguments }}
+      - name: Diagnose Windows build failure
+        if: failure()
+        shell: pwsh
+        run: |
+          $bundle = 'build\windows\x64'
+          Get-ChildItem $bundle -Force -ErrorAction SilentlyContinue | Select-Object Length, Name | Format-Table -AutoSize | Out-String -Width 200
+          foreach ($relative in @('libmpv', 'libmpv\libmpv-2.dll', 'ANGLE', 'ANGLE\libEGL.dll', 'ANGLE\vk_swiftshader.dll', 'runner\Release\data\app.so', 'runner\Release\data\icudtl.dat', 'flutter\generated_plugins.cmake', 'cmake_install.cmake')) {
+            Write-Output ("{0} -> {1}" -f $relative, (Test-Path (Join-Path $bundle $relative)))
+          }
+          Write-Output ("windows\runner\duanju_core.dll -> {0}" -f (Test-Path 'windows\runner\duanju_core.dll'))
+          if (Test-Path (Join-Path $bundle 'cmake_install.cmake')) {
+            Push-Location $bundle
+            cmake -DBUILD_TYPE=Release -P cmake_install.cmake 2>&1 | Select-Object -Last 40
+            Pop-Location
+          }
       - run: choco install ffmpeg --no-progress -y
       - run: python scripts/smoke_windows.py ${{ matrix.arguments }}
       - uses: actions/upload-artifact@v4
